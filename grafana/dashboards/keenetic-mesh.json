@@ -653,8 +653,8 @@
       "gridPos": {
         "x": 0,
         "y": 19,
-        "w": 24,
-        "h": 7
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -789,7 +789,7 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "minWidth": 70
+            "minWidth": 60
           }
         },
         "overrides": [
@@ -801,7 +801,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 140
+                "value": 125
               }
             ]
           },
@@ -813,7 +813,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 110
+                "value": 105
               }
             ]
           },
@@ -973,137 +973,6 @@
       }
     },
     {
-      "id": 35,
-      "type": "stat",
-      "title": "DoS koruması",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Router → Sistem Güvenliği → Bağlantı Limitleri. İnternetten gelen bağlantılar eşiği aşarsa koruma devreye girer.",
-      "gridPos": {
-        "x": 0,
-        "y": 26,
-        "w": 6,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "keenetic_conntrack_lockout_active",
-          "legendFormat": "{{device}}",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Normal",
-                  "color": "green"
-                },
-                "1": {
-                  "text": "Devrede",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "orientation": "horizontal",
-        "wideLayout": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        }
-      }
-    },
-    {
-      "id": 36,
-      "type": "timeseries",
-      "title": "Bağlantı sayısı",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Bağlantı tablosundaki kayıtlar: genel = internetten gelen, özel = yerel ağdan.",
-      "gridPos": {
-        "x": 6,
-        "y": 26,
-        "w": 18,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "keenetic_conntrack_connections{scope=\"public\"}",
-          "legendFormat": "{{device}} genel"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "keenetic_conntrack_connections{scope=\"private\"}",
-          "legendFormat": "{{device}} özel"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "showLegend": true,
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
       "id": 37,
       "type": "table",
       "title": "Saldıran IP'ler (router günlüğü)",
@@ -1113,9 +982,9 @@
       },
       "description": "Router'ların uzak syslog'undan: giriş korumasının engellediği IP'ler (\"ban remote host\") ve router'ın kötü niyetli saydığı istekler (\"malicious request\"). Üstteki zaman aralığına göre süzülür: yalnız o aralıkta görülen IP'ler listelenir, Engelleme ve Kötü istek o aralıktaki sayılardır. Son istekler exporter'ın belleğindeki son 5 yoldur (exporter yeniden başlayınca boşalır). IP'ye tıklayınca AbuseIPDB'de açılır. Liste hiç dolmuyorsa: router'da Diagnostik → Sistem günlüğü → uzak sunucu bu makine mi?",
       "gridPos": {
-        "x": 0,
-        "y": 33,
-        "w": 24,
+        "x": 12,
+        "y": 19,
+        "w": 12,
         "h": 8
       },
       "targets": [
@@ -1235,7 +1104,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 100
               }
             ]
           },
@@ -1251,7 +1120,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 100
               }
             ]
           },
@@ -1263,7 +1132,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 130
+                "value": 125
               }
             ]
           },
@@ -1275,7 +1144,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 125
+                "value": 150
               },
               {
                 "id": "links",
@@ -1328,7 +1197,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 90
+                "value": 95
               },
               {
                 "id": "custom.cellOptions",
@@ -1374,13 +1243,144 @@
       }
     },
     {
+      "id": 35,
+      "type": "stat",
+      "title": "DoS koruması",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router → Sistem Güvenliği → Bağlantı Limitleri. İnternetten gelen bağlantılar eşiği aşarsa koruma devreye girer.",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 6,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_conntrack_lockout_active",
+          "legendFormat": "{{device}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Normal",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "Devrede",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "wideLayout": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Bağlantı sayısı",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Bağlantı tablosundaki kayıtlar: genel = internetten gelen, özel = yerel ağdan.",
+      "gridPos": {
+        "x": 6,
+        "y": 27,
+        "w": 18,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_conntrack_connections{scope=\"public\"}",
+          "legendFormat": "{{device}} genel"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_conntrack_connections{scope=\"private\"}",
+          "legendFormat": "{{device}} özel"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "id": 8,
       "type": "row",
       "title": "Backhaul",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 34,
         "w": 24,
         "h": 1
       },
@@ -1396,7 +1396,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 35,
         "w": 12,
         "h": 8
       },
@@ -1448,7 +1448,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 42,
+        "y": 35,
         "w": 12,
         "h": 8
       },
@@ -1525,7 +1525,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 43,
         "w": 8,
         "h": 8
       },
@@ -1578,7 +1578,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 50,
+        "y": 43,
         "w": 8,
         "h": 8
       },
@@ -1631,7 +1631,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 50,
+        "y": 43,
         "w": 8,
         "h": 8
       },
@@ -1684,7 +1684,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 51,
         "w": 24,
         "h": 6
       },
@@ -1732,7 +1732,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 57,
         "w": 24,
         "h": 1
       },
@@ -1748,7 +1748,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 58,
         "w": 8,
         "h": 8
       },
@@ -1801,7 +1801,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 65,
+        "y": 58,
         "w": 8,
         "h": 8
       },
@@ -1854,7 +1854,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 65,
+        "y": 58,
         "w": 8,
         "h": 8
       },
@@ -1903,7 +1903,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 66,
         "w": 24,
         "h": 1
       },
@@ -1919,7 +1919,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 74,
+        "y": 67,
         "w": 24,
         "h": 10
       },
@@ -2084,7 +2084,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 84,
+        "y": 77,
         "w": 24,
         "h": 9
       },
@@ -2133,7 +2133,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 93,
+        "y": 86,
         "w": 24,
         "h": 1
       },
@@ -2150,7 +2150,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 94,
+        "y": 87,
         "w": 24,
         "h": 13
       },
@@ -2327,7 +2327,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 107,
+        "y": 100,
         "w": 12,
         "h": 8
       },
@@ -2422,7 +2422,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 107,
+        "y": 100,
         "w": 12,
         "h": 8
       },
@@ -2518,7 +2518,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 115,
+        "y": 108,
         "w": 24,
         "h": 9
       },
@@ -2590,7 +2590,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 124,
+        "y": 117,
         "w": 24,
         "h": 1
       },
@@ -2607,7 +2607,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 125,
+        "y": 118,
         "w": 12,
         "h": 7
       },
@@ -2766,7 +2766,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 125,
+        "y": 118,
         "w": 12,
         "h": 7
       },
