@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+*.swp
+*.swo
+*~
+.env.*
+!.env.example
+# Kişisel Telegram ayarı (örneği: telegram.yml.example)
+grafana/provisioning/alerting/telegram.yml

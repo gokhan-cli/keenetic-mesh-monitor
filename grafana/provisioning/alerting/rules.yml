@@ -1,0 +1,238 @@
+apiVersion: 1
+
+# Her kural: A = Prometheus sorgusu, B = eşik (A > 0 ya da A < 1).
+# Sorun yoksa sorgu boş dönebilir; bu yüzden noDataState: OK.
+
+groups:
+  - orgId: 1
+    name: keenetic
+    folder: Keenetic
+    interval: 1m
+    rules:
+      - uid: keenetic-down
+        title: Router'a erişilemiyor
+        condition: B
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 Router'a erişilemiyor"
+          description: "Exporter 5 dakikadır controller'dan veri alamıyor (router kapalı, ağ sorunu ya da giriş hatası). Kontrol: docker logs keenetic-exporter"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Exporter ayaktaysa keenetic_up, değilse scrape durumu (up)
+              expr: '1 - (keenetic_up or up{job="keenetic"} * 0)'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-member-lost
+        title: Mesh üyesi kayboldu
+        condition: B
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 Mesh üyesi kayboldu: {{ .Labels.name }}"
+          description: "{{ .Labels.name }} ({{ .Labels.mac }}) mesh listesinde yok ya da internete erişemiyor."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Son 1 saatte görülüp şimdi listede olmayan üyeler (router erişilebilirken),
+              # ya da listede olup interneti olmayanlar
+              expr: >-
+                (count by (mac, name) (max_over_time(keenetic_mesh_member_info[1h]))
+                  unless on(mac) keenetic_mesh_member_info
+                  and on() keenetic_up == 1)
+                or (1 - keenetic_mesh_member_internet_available) > 0
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-backhaul-reset
+        title: Backhaul yeniden bağlandı
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Backhaul yeniden bağlandı: {{ .Labels.name }}"
+          description: "{{ .Labels.name }} backhaul bağlantısı son 10 dakikada koptu ve yeniden kuruldu."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'resets(keenetic_mesh_backhaul_uptime_seconds[10m])'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-width-degraded
+        title: Kanal genişliği düştü
+        condition: B
+        # Yeniden başlatma sonrası DFS dinlemesi (CAC) ~10 dk sürer
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Kanal genişliği düştü: {{ .Labels.device }} {{ .Labels.band }}"
+          description: "{{ .Labels.device }} {{ .Labels.band }} radyosu 15 dakikadır ayarlanandan dar çalışıyor (oran {{ .Values.A }}). 5 GHz'te genelde radar (DFS) sonrası olur; backhaul hızı da düşer."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'keenetic_radio_channel_width_mhz / keenetic_radio_channel_width_configured_mhz'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: keenetic-firmware-update
+        title: Yazılım güncellemesi var
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: info }
+        annotations:
+          summary: "🔵 Yazılım güncellemesi var: {{ .Labels.device }}"
+          description: "{{ .Labels.device }} için {{ .Labels.channel }} kanalında {{ .Labels.available }} sürümü yayınlandı. Exporter güncelleme kurmaz; kurulum router arayüzünden yapılır."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'keenetic_firmware_update_available'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-login-blocked
+        title: Giriş denemesi engellendi
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 Hatalı giriş nedeniyle IP engellendi: {{ .Labels.device }} {{ .Labels.protocol }}"
+          description: "{{ .Labels.device }} üzerinde {{ .Labels.protocol }} için {{ .Values.A }} IP engellendi (art arda hatalı şifre). Kimin olduğunu router'da Sistem Güvenliği → Güvenlik günlüğü'nde görebilirsiniz. Exporter'ın şifresi değiştiyse sebep o olabilir."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Syslog'dan IP'li uyarı gelen engeller tekrar bildirilmez (aşağıdaki kural)
+              expr: 'keenetic_lockout_current_blocked unless on(device) (keenetic_security_ban_until_seconds - time() > 0)'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-ip-banned
+        title: IP engellendi
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 IP engellendi: {{ .Labels.ip }} → {{ .Labels.device }} {{ .Labels.protocol }}"
+          description: "{{ .Labels.device }}, {{ .Labels.ip }} adresini {{ .Labels.protocol }} için engelledi (art arda hatalı giriş ya da kötü niyetli istek).{{ if .Labels.paths }} Son istekler: {{ .Labels.paths }}{{ end }} IP bilgisi: https://www.abuseipdb.com/check/{{ .Labels.ip }}"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Router syslog'undaki "ban remote host" satırları; değer = kalan süre (sn)
+              expr: >-
+                (keenetic_security_ban_until_seconds - time() > 0)
+                * on(device, ip) group_left(paths) keenetic_security_ip_info
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-dos-active
+        title: DoS koruması devrede
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 DoS koruması devrede: {{ .Labels.device }}"
+          description: "{{ .Labels.device }} internetten gelen bağlantılar eşiği aştığı için bağlantı taşması korumasını devreye aldı."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'keenetic_conntrack_lockout_active'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
