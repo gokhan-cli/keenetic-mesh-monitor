@@ -1448,7 +1448,8 @@
           "mode": "multi",
           "sort": "desc"
         }
-      }
+      },
+      "interval": "2m"
     },
     {
       "id": 58,
@@ -1558,7 +1559,8 @@
           "mode": "multi",
           "sort": "desc"
         }
-      }
+      },
+      "interval": "2m"
     },
     {
       "id": 30,
