@@ -65,6 +65,22 @@ SYSTEM_INTERVAL = int(os.environ.get("SYSTEM_INTERVAL", "30"))
 ROAM_INTERVAL = int(os.environ.get("ROAM_INTERVAL", "60"))
 ROAM_RECENT = 100
 WIFI_BANDS = {0: "2.4 GHz", 1: "5 GHz", 2: "6 GHz"}
+# Uygulama bazında trafik (show ntce summary/chart) okuma aralığı (sn, 0 = kapalı). Router
+# 3 sn'lik dilimleri son 3 dakika için tutar; aralık 180'den küçük olmalı
+APP_INTERVAL = min(int(os.environ.get("APP_INTERVAL", "60")), 150)
+APP_GROUPS = {
+    "Uncategorized": "Sınıflandırılmamış", "Encrypted": "Şifreli", "Cloud and CDN Services": "Bulut ve CDN",
+    "Artificial Intelligence": "Yapay zekâ", "Advertisement and Analytic Services": "Reklam ve analiz",
+    "Network Management": "Ağ yönetimi", "Organizers": "Düzenleyiciler", "Mail": "E-posta",
+    "Development Tools and Services": "Geliştirme araçları", "M2M and IoT": "Akıllı cihazlar (IoT)",
+    "Tunnel": "Tünel / VPN", "Messaging": "Mesajlaşma", "Social Networking": "Sosyal ağ",
+    "Video Streaming": "Video yayını", "Audio Streaming": "Müzik ve ses", "Gaming": "Oyun",
+    "Web Browsing": "Web", "File Transfer": "Dosya aktarımı", "Software Updates": "Yazılım güncellemeleri",
+    "VoIP": "Sesli/görüntülü arama", "Remote Access": "Uzaktan erişim", "Shopping": "Alışveriş",
+    "News": "Haber", "Peer to Peer": "P2P", "Search Engines": "Arama motorları",
+    "Social": "Sosyal", "App-Stores and OS Updates": "Uygulama mağazaları ve güncellemeler",
+    "Business": "İş uygulamaları", "Enterprise Services": "Kurumsal servisler", "Voice over IP": "İnternet telefonu",
+}
 # VPN sayılan arayüz türleri (show/interface "type")
 VPN_TYPES = {"openvpn", "wireguard", "ipsec", "ike", "l2tp", "pptp", "sstp", "openconnect", "zerotier"}
 # Router'ların uzak syslog'u (Diagnostik → Sistem günlüğü) için UDP port (0 = kapalı)
@@ -297,8 +313,9 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam):
+    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam, apps):
         self.c = client
+        self.apps = apps
         self.roam = roam
         self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
@@ -359,6 +376,8 @@ class MeshCollector:
             yield from self._system()
         if ROAM_INTERVAL:
             yield from self._roam()
+        if APP_INTERVAL:
+            yield from self._apps()
         if COLLECT_CLIENTS:
             yield from self._clients(names)
         if SURVEY_INTERFACES:
@@ -743,6 +762,20 @@ class MeshCollector:
         yield total
         yield recent
 
+    def _apps(self):
+        L = ["app", "group"]
+        rx = CounterMetricFamily("keenetic_application_receive_bytes",
+                                 "Uygulamadan alınan (indirilen) bayt, tüm cihazlar; exporter açıldıktan sonrası",
+                                 labels=L)
+        tx = CounterMetricFamily("keenetic_application_transmit_bytes",
+                                 "Uygulamaya gönderilen (yüklenen) bayt, tüm cihazlar; exporter açıldıktan sonrası",
+                                 labels=L)
+        for (app, group), (r, t) in self.apps.snapshot().items():
+            rx.add_metric([app, group], r)
+            tx.add_metric([app, group], t)
+        yield rx
+        yield tx
+
     def _syslog(self):
         L = ["device", "ip"]
         seen = GaugeMetricFamily("keenetic_security_ip_last_seen_seconds",
@@ -1044,6 +1077,79 @@ class RoamWorker(DeviceWorker):
             log.debug("roam: %d yeni olay", len(new))
 
 
+class AppWorker(DeviceWorker):
+    """Uygulama bazında trafik, web arayüzündeki Trafik İzleme ile aynı kaynak
+    (yalnız controller; mesh üyelerinin trafiği de oradan geçer). show ntce summary
+    son 3 dakikada trafiği olan uygulamaları, show ntce chart her biri için 3 sn'lik
+    dilimlerde kesin baytı verir; son okumadan bu yana tamamlanan dilimler sayaca
+    eklenir. Kayıtsız cihazlar dahildir; cihaz başına kırılım yoktur."""
+
+    def __init__(self):
+        super().__init__("apps", APP_INTERVAL)
+        self.last_t = None  # sayılan son dilimin zamanı (router açık kalma süresi, sn)
+        self.counts = {}    # (uygulama, grup) -> birikmiş [rx, tx]
+
+    def snapshot(self):
+        with self.lock:
+            return {k: tuple(v) for k, v in self.counts.items()}
+
+    @staticmethod
+    def _app_name(a):
+        if a.get("id-num") == 0:
+            return "Sınıflandırılmamış"
+        # "Google FCM (encrypted, google)" -> "Google FCM", "Cloudflare (application)" -> "Cloudflare"
+        return re.sub(r"( \([^)]*\))+$", "", a.get("long") or "") or a.get("short") or "?"
+
+    def run(self):
+        while True:
+            try:
+                self._poll()
+            except Exception as e:  # opsiyonel veri; bir sonraki turda tekrar
+                log.warning("apps: uygulama trafiği okunamadı: %s", e)
+            time.sleep(self.interval)
+
+    def _poll(self):
+        c = client(HOST)
+        apps = {}
+        for a in c.post("show/ntce/summary", {"application": True, "attrib": "sumbytes", "detail": 0,
+                                               "count": 1000}).get("application") or []:
+            # "type" kalemleri (diğerleri) kimliksiz özet satırıdır; özet trafiği olmayan
+            # uygulamaları da listeler, grafik ise çok kalemde eksik döner
+            if "id-num" in a and num(a.get("sumbytes")):
+                group = a.get("group-long") or ""
+                apps[a["id-num"]] = (self._app_name(a), APP_GROUPS.get(group, group))
+        if not apps:
+            return
+        bars = c.post("show/ntce/chart", {"applications": True, "attributes": "rxbytes,txbytes", "detail": 0,
+                                          "items": ",".join(str(i) for i in apps)}).get("bar") or []
+        # id -> {dilim zamanı: [rx, tx]}
+        data = {}
+        for b in bars:
+            d = data.setdefault(b.get("id-num"), {})
+            for attr in b.get("bars") or []:
+                i = 0 if attr.get("attribute") == "rxbytes" else 1
+                for p in attr.get("data") or []:
+                    d.setdefault(p["t"], [0, 0])[i] = num(p.get("v")) or 0
+        times = {t for d in data.values() for t in d}
+        if not times:
+            return
+        newest = max(times)  # en yeni dilim henüz dolmamış olabilir; sonraki turda sayılır
+        with self.lock:
+            for key in apps.values():
+                self.counts.setdefault(key, [0, 0])
+            if self.last_t is not None and self.last_t <= newest:
+                # ilk okumada ya da router yeniden başlayınca geçmiş sayılmaz, seriler 0'dan başlar
+                for id_, d in data.items():
+                    key = apps.get(id_)
+                    if key is None:
+                        continue
+                    for t, (r, x) in d.items():
+                        if self.last_t < t < newest:
+                            self.counts[key][0] += r
+                            self.counts[key][1] += x
+            self.last_t = max((t for t in times if t < newest), default=newest)
+
+
 class SystemWorker(DeviceWorker):
     """Cihaz başına CPU, bellek ve açık kalma süresi (controller dahil)."""
 
@@ -1166,7 +1272,11 @@ if __name__ == "__main__":
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
     security, syslog, system, roam = SecurityWorker(), SyslogWorker(), SystemWorker(), RoamWorker()
-    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system, roam))
+    apps = AppWorker()
+    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system, roam,
+                                    apps))
+    if APP_INTERVAL:
+        apps.start()
     if ROAM_INTERVAL:
         roam.start()
     if SYSTEM_INTERVAL:

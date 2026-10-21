@@ -68,7 +68,8 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
 | `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
 | `keenetic_system_*` | Cihaz başına (controller ve extender'lar) CPU yükü, bellek ve açık kalma süresi |
-| `keenetic_client_receive_bytes_total` / `_transmit_bytes_total` | Cihaz başına router üzerinden indirilen / yüklenen bayt (internet ve VPN; yerel ağ içi trafik dahil değil). Router açıldığından beri birikir |
+| `keenetic_client_receive_bytes_total` / `_transmit_bytes_total` | Cihaz başına router üzerinden indirilen / yüklenen bayt (internet ve VPN; yerel ağ içi trafik dahil değil). Router açıldığından beri birikir; yalnız router'da kayıtlı cihazlar için tutulur |
+| `keenetic_application_receive_bytes_total` / `_transmit_bytes_total` | Uygulama başına indirilen / yüklenen bayt, tüm cihazlar (`app`, `group` etiketleri; kayıtsız cihazlar dahil). Exporter açıldıktan sonrası |
 | `keenetic_mesh_roam_events_total` | Mesh dolaşım günlüğünden istemci başına olaylar (`event`: roam = erişim noktası/bant değiştirdi, join = bağlandı, leave = ayrıldı), nereden/nereye (cihaz ve bant) ve yöntem (`ft` = 802.11r, `pmk`). Exporter açıldıktan sonraki olaylar sayılır |
 | `keenetic_mesh_roam_event` | Son 100 olay (değer = olay zamanı); dashboard'daki "Son olaylar" tablosu |
 | `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |
@@ -144,5 +145,6 @@ KeeneticOS 5.x `x-ndw4-interactive` giriş yöntemini kullanır (Argon2id + HMAC
 - Yazılım güncellemeleri her cihazda saatte bir kontrol edilir (`FIRMWARE_INTERVAL`, 0 = kapalı). Router her kontrolde Keenetic güncelleme sunucusuna bağlanır. Exporter yalnızca okur; güncelleme kurmaz. Kanal API'de `lts-*`, `stable`, `preview`, `draft` (= Geliştirici) olarak geçer.
 - Sistem Güvenliği sayaçları her cihazdan 1 dk'da bir okunur (`SECURITY_INTERVAL`, 0 = kapalı). Cihazda bulunmayan protokoller (ör. extender'da SSH) atlanır. Exporter yalnızca okur; koruma ayarlarını değiştirmez.
 - Mesh dolaşım günlüğü (`show mws log`, controller son ~1000 olayı tutar) dakikada bir okunur (`ROAM_INTERVAL`, 0 = kapalı). Bu komut GET'te 404 verir; web arayüzü gibi POST ile okunur, yine yalnızca okumadır.
+- Uygulama bazında trafik dakikada bir okunur (`APP_INTERVAL`, en fazla 150, 0 = kapalı). Kaynak web arayüzündeki Trafik İzleme ile aynıdır: `show ntce summary` son 3 dakikada trafiği olan uygulamaları, `show ntce chart` her biri için 3 sn'lik dilimlerde kesin baytı verir; exporter yeni dilimleri sayaca ekler. Router bu veriyi uygulama düzeyinde tutar, cihaz × uygulama kırılımı yoktur. Bu komutlar da GET'te 404 verir, POST ile okunur.
 - İnternet, WAN ve VPN durumu her toplamada controller'dan okunur. Cihaz başına CPU / bellek / açık kalma süresi 30 sn'de bir okunur (`SYSTEM_INTERVAL`, 0 = kapalı).
 - `monitor` kullanıcısı salt okunur olsa da router'ın tüm ayarlarını (`show running-config`: Wi-Fi şifreleri, VPN anahtarları) okuyabilir. Exporter bunları okumaz, ama `.env`'deki şifreyi yönetici şifresi gibi saklayın.
