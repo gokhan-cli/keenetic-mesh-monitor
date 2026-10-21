@@ -407,3 +407,39 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-client-arrived
+        title: Cihaz eve geldi
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        # notify=once: telegram.yml'de "Düzeldi" mesajı göndermeyen yola gider
+        labels: { severity: info, notify: once }
+        annotations:
+          summary: "🏠 Eve geldi: {{ .Labels.name }}"
+          description: "{{ .Labels.name }} en az 4 saattir Wi-Fi'de görünmüyordu, şimdi ağa bağlandı."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 15000, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Son 5 dakikada görülen ama ondan önceki 4 saatte hiç görülmeyen Wi-Fi
+              # istemcileri. Son 5 dakikaya bakmak, ilk dakikalardaki kopma ve node
+              # değiştirmede ikinci bildirimi önler. Exporter ya da router o 4 saatte
+              # çoğunlukla çalışmıyorsa (veri yok) herkes "geldi" sayılmasın.
+              expr: >-
+                group by (mac, name) (max_over_time(keenetic_wifi_client_rssi_dbm[5m]))
+                unless on(mac) group by (mac) (max_over_time(keenetic_wifi_client_rssi_dbm[4h] offset 5m))
+                and on() (count_over_time(keenetic_up[4h] offset 5m) > 400)
+                and on() (avg_over_time(keenetic_up[4h] offset 5m) > 0.9)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }

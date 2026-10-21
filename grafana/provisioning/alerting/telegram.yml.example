@@ -30,6 +30,19 @@ contactPoints:
           parse_mode: None
           message: '{{ template "telegram.tr" . }}'
 
+  # Olay bildirimleri (ör. eve geliş): yalnız bir kez gönderilir, "Düzeldi" mesajı gelmez
+  - orgId: 1
+    name: Telegram (tek sefer)
+    receivers:
+      - uid: telegram-once
+        type: telegram
+        disableResolveMessage: true
+        settings:
+          bottoken: $TELEGRAM_BOT_TOKEN
+          chatid: "SOHBET_NUMARANIZ"
+          parse_mode: None
+          message: '{{ template "telegram.tr" . }}'
+
 policies:
   - orgId: 1
     receiver: Telegram
@@ -38,6 +51,10 @@ policies:
     group_interval: 5m
     repeat_interval: 24h
     routes:
+      # Eve geliş bildirimi: tek mesaj
+      - receiver: Telegram (tek sefer)
+        object_matchers:
+          - ["notify", "=", "once"]
       # Güncelleme bildirimi haftada bir hatırlatılsın
       - receiver: Telegram
         object_matchers:

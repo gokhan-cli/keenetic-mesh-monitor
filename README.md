@@ -119,9 +119,10 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
 | 🟠 Radyo ısınıyor | Bir Wi-Fi radyosu 15 dk boyunca 80 °C üzerindeyse (normalde 50–65 °C) |
+| 🏠 Eve geldi | Önceki 4 saatte hiç görülmeyen bir Wi-Fi cihazı ağa bağlanınca, tek mesaj ("Düzeldi" gelmez). Kablolu cihazlar dahil değil; exporter ya da router o 4 saatte çoğunlukla kapalıysa uyarı üretmez |
 | 🔵 Yazılım güncellemesi var | Takip edilen kanalda yeni sürüm çıkarsa (haftada bir hatırlatılır) |
 
-Sorun düzelince "✅ Düzeldi" mesajı gelir. Bir uyarı en fazla günde bir kez tekrarlanır. Kurallar Grafana'da **Alerting → Alert rules** altında görünür; provisioning ile geldikleri için arayüzden değiştirilemez, değişiklik `rules.yml` üzerinden yapılır.
+Sorun düzelince "✅ Düzeldi" mesajı gelir (`notify: once` etiketli olay uyarıları hariç; bunlar `telegram.yml`'deki "Telegram (tek sefer)" yoluyla tek mesaj olarak gider. Eski bir `telegram.yml` kullanıyorsanız bu bölümü örnek dosyadan ekleyin). Bir uyarı en fazla günde bir kez tekrarlanır. Kurallar Grafana'da **Alerting → Alert rules** altında görünür; provisioning ile geldikleri için arayüzden değiştirilemez, değişiklik `rules.yml` üzerinden yapılır.
 
 ## Giriş yöntemi (ndw4 / ndw2)
 
