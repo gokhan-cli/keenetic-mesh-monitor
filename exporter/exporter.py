@@ -9,6 +9,8 @@ Kaynaklar:
   /rci/show/mws/member   -> extender'lar, backhaul (txrate, rssi, mcs, ht ...)
   /rci/show/associations -> controller ve mesh üyelerindeki Wi-Fi istemcileri
   /rci/show/ip/hotspot   -> MAC -> cihaz adı eşlemesi
+  /rci/show/internet/status, show/interface -> internet, WAN (PPPoE) ve VPN tünelleri
+  /rci/show/system       -> cihaz başına CPU, bellek, açık kalma süresi
   syslog (UDP 514)       -> engellenen IP'ler ve kötü niyetli istekler
 """
 import base64
@@ -54,6 +56,10 @@ FIRMWARE_INTERVAL = int(os.environ.get("FIRMWARE_INTERVAL", "3600"))
 SECURITY_INTERVAL = int(os.environ.get("SECURITY_INTERVAL", "60"))
 # Sistem Güvenliği sayfasındaki protokoller; cihazda olmayanlar (404) atlanır
 LOCKOUT_PROTOCOLS = ["http", "telnet", "ssh"]
+# Cihaz başına CPU / bellek / açık kalma süresi okuma aralığı (sn, 0 = kapalı)
+SYSTEM_INTERVAL = int(os.environ.get("SYSTEM_INTERVAL", "30"))
+# VPN sayılan arayüz türleri (show/interface "type")
+VPN_TYPES = {"openvpn", "wireguard", "ipsec", "ike", "l2tp", "pptp", "sstp", "openconnect", "zerotier"}
 # Router'ların uzak syslog'u (Diagnostik → Sistem günlüğü) için UDP port (0 = kapalı)
 SYSLOG_PORT = int(os.environ.get("SYSLOG_PORT", "514"))
 # Saldıran IP'nin son görülmesinden sonra listede kalma süresi (sn)
@@ -249,6 +255,21 @@ def version_key(v):
     return tuple(int(p) if p.isdigit() else ord(p) - 1000 for p in re.findall(r"\d+|[A-Z]", str(v)))
 
 
+def tr_duration(seconds):
+    """Süreyi Türkçe yazar: "1 gün 17 saat", "14 saat 20 dk", "35 dk".
+    Grafana'nın süre birimleri yalnız İngilizce. Metin etiket olarak verildiği için
+    her değişiklik yeni bir seri açar; bu yüzden 1 saati geçince 5 dk'lık adımlarla
+    (aşağı yuvarlanır), 1 günü geçince saatlik değişir."""
+    m = int(seconds) // 60
+    d, h = divmod(m // 60, 24)
+    if d:
+        return f"{d} gün {h} saat" if h else f"{d} gün"
+    if h:
+        m5 = m % 60 // 5 * 5
+        return f"{h} saat {m5} dk" if m5 else f"{h} saat"
+    return f"{m} dk" if m else "1 dk'dan az"
+
+
 def num(v):
     try:
         return float(v)
@@ -257,8 +278,9 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, syslog):
+    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system):
         self.c = client
+        self.system = system
         self.syslog = syslog
         self.security = security
         self.firmware = firmware
@@ -291,6 +313,9 @@ class MeshCollector:
         up.add_metric([], 1)
         yield up
         yield from self._members(members, names)
+        yield from self._internet()
+        if SYSTEM_INTERVAL:
+            yield from self._system()
         if COLLECT_CLIENTS:
             yield from self._clients(names)
         if SURVEY_INTERFACES:
@@ -536,6 +561,126 @@ class MeshCollector:
         yield from ct.values()
         yield conns
 
+    def _internet(self):
+        """İnternet durumu, WAN arayüzü ve VPN tünelleri (yalnız controller)."""
+        try:
+            st = self.c.get("show/internet/status")
+            ifs = self.c.get("show/interface")
+            pings = as_list(self.c.get("show/ping-check"), "pingcheck")
+        except Exception as e:  # opsiyonel veri; mesh metrikleri etkilenmesin
+            log.warning("internet durumu okunamadı: %s", e)
+            return
+        inet = GaugeMetricFamily("keenetic_internet_up", "Router'a göre internet erişimi var mı (1/0)")
+        inet.add_metric([], 1 if st.get("internet") else 0)
+        chk = GaugeMetricFamily("keenetic_internet_check", "Router'ın internet kontrolleri (1/0)", labels=["check"])
+        for check, key in [("gateway", "gateway-accessible"), ("dns", "dns-accessible"),
+                           ("captive", "captive-accessible")]:
+            if key in st:
+                chk.add_metric([check], 1 if st[key] else 0)
+        yield inet
+        yield chk
+
+        ping = GaugeMetricFamily("keenetic_pingcheck_pass", "Ping kontrolü başarılı mı (1/0)",
+                                 labels=["profile", "interface"])
+        pfail = GaugeMetricFamily("keenetic_pingcheck_failures", "Ping kontrolündeki ardışık başarısızlık",
+                                  labels=["profile", "interface"])
+        for prof in pings:
+            for name, d in (prof.get("interface") or {}).items():
+                lv = [prof.get("profile", ""), name]
+                ping.add_metric(lv, 1 if d.get("status") == "pass" else 0)
+                v = num(d.get("failcount"))
+                if v is not None:
+                    pfail.add_metric(lv, v)
+        yield ping
+        yield pfail
+
+        wan = (st.get("gateway") or {}).get("interface") or next(
+            (k for k, v in ifs.items() if isinstance(v, dict) and v.get("defaultgw")), None)
+        wl = ["interface"]
+        winfo = GaugeMetricFamily("keenetic_wan_info", "İnternete çıkan arayüz", labels=wl + ["description", "type", "via"])
+        wup = GaugeMetricFamily("keenetic_wan_up", "WAN bağlı mı (1/0)", labels=wl)
+        wtime = GaugeMetricFamily("keenetic_wan_uptime_seconds", "WAN bağlantısının süresi (PPPoE'de oturum süresi)", labels=wl)
+        wtext = GaugeMetricFamily("keenetic_wan_uptime_text", "WAN bağlantı süresi, Türkçe metin (text etiketi)",
+                                  labels=wl + ["text"])
+        cnt = {k: CounterMetricFamily(f"keenetic_wan_{k}", h, labels=wl) for k, h in {
+            "receive_bytes": "WAN alınan bayt", "transmit_bytes": "WAN gönderilen bayt",
+            "receive_errors": "WAN alma hataları", "transmit_errors": "WAN gönderme hataları",
+            "receive_drops": "WAN alınırken düşen paketler", "transmit_drops": "WAN gönderilirken düşen paketler",
+        }.items()}
+        w = ifs.get(wan) if wan else None
+        if isinstance(w, dict):
+            winfo.add_metric([wan, w.get("description", ""), w.get("type", ""), w.get("via", "")], 1)
+            wup.add_metric([wan], 1 if w.get("connected") == "yes" else 0)
+            if num(w.get("uptime")) is not None:
+                wtime.add_metric([wan], num(w.get("uptime")))
+                wtext.add_metric([wan, tr_duration(num(w.get("uptime")))], 1)
+            try:
+                stat = self.c.get(f"show/interface/stat?name={wan}")
+                for k, src in [("receive_bytes", "rxbytes"), ("transmit_bytes", "txbytes"),
+                               ("receive_errors", "rxerrors"), ("transmit_errors", "txerrors"),
+                               ("receive_drops", "rxdropped"), ("transmit_drops", "txdropped")]:
+                    if num(stat.get(src)) is not None:
+                        cnt[k].add_metric([wan], num(stat[src]))
+            except Exception as e:
+                log.debug("WAN sayaçları okunamadı: %s", e)
+        yield winfo
+        yield wup
+        yield wtime
+        yield wtext
+        yield from cnt.values()
+
+        vl = ["interface", "name", "type"]
+        ven = GaugeMetricFamily("keenetic_vpn_enabled", "VPN tüneli açık mı (ayar, 1/0)", labels=vl)
+        vup = GaugeMetricFamily("keenetic_vpn_up", "VPN tüneli bağlı mı (1/0)", labels=vl)
+        vtime = GaugeMetricFamily("keenetic_vpn_uptime_seconds", "VPN tünelinin bağlı kalma süresi", labels=vl)
+        vtext = GaugeMetricFamily("keenetic_vpn_uptime_text", "VPN bağlı kalma süresi, Türkçe metin (text etiketi)",
+                                  labels=vl + ["text"])
+        for name, v in ifs.items():
+            if not isinstance(v, dict) or str(v.get("type", "")).lower() not in VPN_TYPES:
+                continue
+            lv = [name, v.get("description") or name, v.get("type", "")]
+            ven.add_metric(lv, 1 if v.get("state") == "up" else 0)
+            vup.add_metric(lv, 1 if v.get("connected") == "yes" else 0)
+            if num(v.get("uptime")) is not None and v.get("connected") == "yes":
+                vtime.add_metric(lv, num(v.get("uptime")))
+                vtext.add_metric(lv + [tr_duration(num(v.get("uptime")))], 1)
+        yield ven
+        yield vup
+        yield vtime
+        yield vtext
+
+    def _system(self):
+        L = ["device"]
+        fam = {k: GaugeMetricFamily(f"keenetic_system_{k}", h, labels=L) for k, h in {
+            "cpu_load_percent": "CPU yükü (%, son ~30 sn ortalaması)",
+            "cpu_load_max_percent": "CPU yükü (%, son ~30 sn en yüksek)",
+            "memory_used_bytes": "Kullanılan bellek",
+            "memory_total_bytes": "Toplam bellek",
+            "uptime_seconds": "Cihazın açık kalma süresi",
+        }.items()}
+        uptext = GaugeMetricFamily("keenetic_system_uptime_text", "Açık kalma süresi, Türkçe metin (text etiketi)",
+                                   labels=L + ["text"])
+        now = time.time()
+        for device, (d, at) in self.system.snapshot().items():
+            if now - at > 3 * SYSTEM_INTERVAL:
+                continue  # cihaza ulaşılamıyor; eski değeri gösterme
+            sysi, busy = d["system"], (d.get("cpustat") or {}).get("busy") or {}
+            for k, v in [("cpu_load_percent", busy.get("avg", sysi.get("cpuload"))),
+                         ("cpu_load_max_percent", busy.get("max")),
+                         ("uptime_seconds", sysi.get("uptime"))]:
+                if num(v) is not None:
+                    fam[k].add_metric([device], num(v))
+            if num(sysi.get("uptime")) is not None:
+                uptext.add_metric([device, tr_duration(num(sysi["uptime"]))], 1)
+            mem = str(sysi.get("memory", ""))  # "kullanılan/toplam" kB
+            if "/" in mem:
+                used, total = (num(x) for x in mem.split("/", 1))
+                if used is not None and total:
+                    fam["memory_used_bytes"].add_metric([device], used * 1024)
+                    fam["memory_total_bytes"].add_metric([device], total * 1024)
+        yield from fam.values()
+        yield uptext
+
     def _syslog(self):
         L = ["device", "ip"]
         seen = GaugeMetricFamily("keenetic_security_ip_last_seen_seconds",
@@ -740,6 +885,20 @@ class SecurityWorker(DeviceWorker):
         return {"lockout": lockout, "conntrack": conntrack}
 
 
+class SystemWorker(DeviceWorker):
+    """Cihaz başına CPU, bellek ve açık kalma süresi (controller dahil)."""
+
+    def __init__(self):
+        super().__init__("system", SYSTEM_INTERVAL)
+
+    def poll(self, client):
+        try:
+            cpustat = client.get("show/system/cpustat")
+        except Exception:  # eski yazılımlarda yok; cpuload yeter
+            cpustat = None
+        return {"system": client.get("show/system"), "cpustat": cpustat}
+
+
 class SyslogWorker(threading.Thread):
     """Router'ların uzak syslog'unu dinler; giriş korumasının engellediği IP'leri
     ve kötü niyetli istekleri (IP ve istenen yolla) tutar. RCI'da bu bilgi yok,
@@ -847,8 +1006,10 @@ if __name__ == "__main__":
     if not PASSWORD:
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
-    security, syslog = SecurityWorker(), SyslogWorker()
-    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog))
+    security, syslog, system = SecurityWorker(), SyslogWorker(), SystemWorker()
+    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system))
+    if SYSTEM_INTERVAL:
+        system.start()
     if SYSLOG_PORT:
         syslog.start()
     if SECURITY_INTERVAL:

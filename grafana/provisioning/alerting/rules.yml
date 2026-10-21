@@ -125,6 +125,116 @@ groups:
               conditions:
                 - evaluator: { type: lt, params: [1] }
 
+      - uid: keenetic-internet-down
+        title: İnternet bağlantısı yok
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 İnternet bağlantısı yok"
+          description: "Router 2 dakikadır internete erişemiyor. Bu mesaj bağlantı gelince iletilir; kesintinin başlangıcı Olay Saati'dir."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Router kendi kontrolünü yapar (ağ geçidi, DNS, captive)
+              expr: '1 - keenetic_internet_up'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-wan-reconnect
+        title: İnternet yeniden bağlandı
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 İnternet bağlantısı yeniden kuruldu: {{ .Labels.interface }}"
+          description: "{{ .Labels.interface }} bağlantısı son 10 dakikada koptu ve yeniden kuruldu (PPPoE oturumu yenilendi)."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'resets(keenetic_wan_uptime_seconds[10m])'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-device-reboot
+        title: Cihaz yeniden başladı
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Yeniden başladı: {{ .Labels.device }}"
+          description: "{{ .Labels.device }} son 10 dakikada yeniden başladı (elektrik kesintisi, güncelleme ya da çökme)."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 'resets(keenetic_system_uptime_seconds[10m])'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-vpn-down
+        title: VPN bağlantısı koptu
+        condition: B
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 VPN bağlantısı koptu: {{ .Labels.name }}"
+          description: "{{ .Labels.name }} ({{ .Labels.interface }}) açık ama 3 dakikadır bağlı değil."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Ayarda kapalı tüneller uyarı üretmez
+              expr: 'keenetic_vpn_enabled == 1 and keenetic_vpn_up == 0'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
       - uid: keenetic-firmware-update
         title: Yazılım güncellemesi var
         condition: B

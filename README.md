@@ -63,6 +63,12 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_firmware_info` / `_update_available` / `_channel_newer` | Kurulu yazılım, takip edilen kanal (LTS/Kararlı/Önizleme/Geliştirici) ve kanallardaki son sürümler |
 | `keenetic_lockout_*` | Giriş koruması (Sistem Güvenliği → Kimlik Doğrulama Güvenliği), cihaz ve protokol (http/telnet/ssh) başına: açık mı, şu an engellenen / takip edilen / son 1 saatte / toplam engellenen IP sayısı, eşik ve süreler |
 | `keenetic_conntrack_*` | Bağlantı taşması (DoS) koruması: açık mı, devrede mi, eşik (%), bağlantı sayıları (`scope` = public/private) ve tablo kapasitesi |
+| `keenetic_internet_up` / `keenetic_internet_check` | Router'ın internet kontrolü (ağ geçidi, DNS, captive) |
+| `keenetic_wan_*` | İnternete çıkan arayüz (PPPoE vb.): bağlı mı, oturum süresi, alınan/gönderilen bayt, hata ve düşen paket sayaçları |
+| `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
+| `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
+| `keenetic_system_*` | Cihaz başına (controller ve extender'lar) CPU yükü, bellek ve açık kalma süresi |
+| `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |
 | `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router syslog'undan saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`SYSLOG_RETENTION`) |
 | `keenetic_syslog_messages_total` / `_last_message_seconds` | Cihaz başına alınan syslog satırı; sıfırsa router syslog göndermiyor |
 
@@ -103,6 +109,10 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 IP engellendi | Syslog'da "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
 | 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama syslog'dan IP bilgisi gelmediyse (yedek; IP içermez) |
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |
+| 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
+| 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
+| 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
+| 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
 | 🔵 Yazılım güncellemesi var | Takip edilen kanalda yeni sürüm çıkarsa (haftada bir hatırlatılır) |
 
 Sorun düzelince "✅ Düzeldi" mesajı gelir. Bir uyarı en fazla günde bir kez tekrarlanır. Kurallar Grafana'da **Alerting → Alert rules** altında görünür; provisioning ile geldikleri için arayüzden değiştirilemez, değişiklik `rules.yml` üzerinden yapılır.
@@ -129,3 +139,5 @@ KeeneticOS 5.x `x-ndw4-interactive` giriş yöntemini kullanır (Argon2id + HMAC
 - Radyo durumu (kanal, gerçek/ayarlanan genişlik, sıcaklık) her cihazdan arka planda 1 dk'da bir okunur (`RADIO_INTERVAL`). Backhaul için ayrı genişlik ayarı yoktur; controller'ın 5 GHz radyosu hangi genişlikte çalışıyorsa backhaul da onu kullanır.
 - Yazılım güncellemeleri her cihazda saatte bir kontrol edilir (`FIRMWARE_INTERVAL`, 0 = kapalı). Router her kontrolde Keenetic güncelleme sunucusuna bağlanır. Exporter yalnızca okur; güncelleme kurmaz. Kanal API'de `lts-*`, `stable`, `preview`, `draft` (= Geliştirici) olarak geçer.
 - Sistem Güvenliği sayaçları her cihazdan 1 dk'da bir okunur (`SECURITY_INTERVAL`, 0 = kapalı). Cihazda bulunmayan protokoller (ör. extender'da SSH) atlanır. Exporter yalnızca okur; koruma ayarlarını değiştirmez.
+- İnternet, WAN ve VPN durumu her toplamada controller'dan okunur. Cihaz başına CPU / bellek / açık kalma süresi 30 sn'de bir okunur (`SYSTEM_INTERVAL`, 0 = kapalı).
+- `monitor` kullanıcısı salt okunur olsa da router'ın tüm ayarlarını (`show running-config`: Wi-Fi şifreleri, VPN anahtarları) okuyabilir. Exporter bunları okumaz, ama `.env`'deki şifreyi yönetici şifresi gibi saklayın.

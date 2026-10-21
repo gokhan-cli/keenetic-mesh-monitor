@@ -395,13 +395,613 @@
       }
     },
     {
+      "id": 38,
+      "type": "row",
+      "title": "İnternet ve VPN",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 39,
+      "type": "stat",
+      "title": "İnternet",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_internet_up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Var",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Yok",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": false,
+        "orientation": "auto"
+      },
+      "description": "Router'ın kendi internet kontrolü: ağ geçidi, DNS ve Keenetic'in captive sunucusu."
+    },
+    {
+      "id": 40,
+      "type": "stat",
+      "title": "Bağlantı süresi",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 11,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (text) (keenetic_wan_uptime_text)",
+          "legendFormat": "{{text}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "name",
+        "wideLayout": false,
+        "orientation": "auto",
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "description": "WAN (PPPoE) oturumunun süresi. Sıfırlanırsa bağlantı kopup yeniden kurulmuştur."
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "İndirme",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 11,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(keenetic_wan_receive_bytes_total[2m])) * 8"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bps",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": false,
+        "orientation": "auto"
+      },
+      "description": "Son 2 dakikanın ortalama WAN indirme hızı."
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "Yükleme",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 11,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(keenetic_wan_transmit_bytes_total[2m])) * 8"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bps",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": false,
+        "orientation": "auto"
+      },
+      "description": "Son 2 dakikanın ortalama WAN yükleme hızı."
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "Ping kontrolü",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 11,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min(keenetic_pingcheck_pass)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Başarılı",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Başarısız",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": false,
+        "orientation": "auto"
+      },
+      "description": "Router'ın ping kontrolü (İnternet → Ping kontrolü profili)."
+    },
+    {
+      "id": 44,
+      "type": "timeseries",
+      "title": "İnternet trafiği",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 14,
+        "h": 8
+      },
+      "description": "WAN arayüzünün indirme ve yükleme hızı (1 dk ortalama).",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(keenetic_wan_receive_bytes_total[$__rate_interval])) * 8",
+          "legendFormat": "İndirme"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(keenetic_wan_transmit_bytes_total[$__rate_interval])) * 8",
+          "legendFormat": "Yükleme"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 45,
+      "type": "table",
+      "title": "VPN tünelleri",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 15,
+        "w": 10,
+        "h": 8
+      },
+      "description": "Router'daki VPN bağlantıları. Ayar = tünel açık mı; Durum = şu an bağlı mı. Açık olup 3 dk bağlanamayan tünel için Telegram uyarısı gelir.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (name, type) (keenetic_vpn_enabled)",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (name, type) (keenetic_vpn_up)",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (name, type, text) (keenetic_vpn_uptime_text)",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #C": true
+            },
+            "indexByName": {
+              "name": 0,
+              "type": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "text": 4
+            },
+            "renameByName": {
+              "name": "Tünel",
+              "type": "Tür",
+              "Value #A": "Ayar",
+              "Value #B": "Durum",
+              "text": "Süre"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Tünel"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ayar"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Açık",
+                        "color": "text"
+                      },
+                      "0": {
+                        "text": "Kapalı",
+                        "color": "#808080"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Durum"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Bağlı",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Bağlı değil",
+                        "color": "#808080"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tür"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tünel"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "id": 30,
       "type": "row",
       "title": "Yazılım",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 23,
         "w": 24,
         "h": 1
       },
@@ -418,7 +1018,7 @@
       "description": "Her cihazın takip ettiği kanal (Sistem → Güncelleme) ve o kanalda yeni sürüm olup olmadığı. Saatte bir kontrol edilir (FIRMWARE_INTERVAL).",
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 24,
         "w": 12,
         "h": 7
       },
@@ -537,7 +1137,7 @@
       "description": "LTS / Kararlı / Önizleme / Geliştirici kanallarındaki son sürüm. 'Daha yeni' = cihazda kurulu olandan yeni.",
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 24,
         "w": 12,
         "h": 7
       },
@@ -635,7 +1235,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -652,7 +1252,7 @@
       "description": "Router → Sistem Güvenliği → Kimlik Doğrulama Güvenliği. Bir IP, izleme aralığı içinde eşik kadar hatalı giriş yaparsa kilitleme süresi boyunca engellenir. Engelli = şu anda engellenen IP sayısı; Takipte = hatalı giriş yapmış ama henüz engellenmemiş IP sayısı; Eşik/Kilit/Aralık = router ayarları. Toplam, router açıldığından beri sayılır.",
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -983,7 +1583,7 @@
       "description": "Router'ların uzak syslog'undan: giriş korumasının engellediği IP'ler (\"ban remote host\") ve router'ın kötü niyetli saydığı istekler (\"malicious request\"). Üstteki zaman aralığına göre süzülür: yalnız o aralıkta görülen IP'ler listelenir, Engelleme ve Kötü istek o aralıktaki sayılardır. Son istekler exporter'ın belleğindeki son 5 yoldur (exporter yeniden başlayınca boşalır). IP'ye tıklayınca AbuseIPDB'de açılır. Liste hiç dolmuyorsa: router'da Diagnostik → Sistem günlüğü → uzak sunucu bu makine mi?",
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -1253,7 +1853,7 @@
       "description": "Router → Sistem Güvenliği → Bağlantı Limitleri. İnternetten gelen bağlantılar eşiği aşarsa koruma devreye girer.",
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 40,
         "w": 6,
         "h": 7
       },
@@ -1327,7 +1927,7 @@
       "description": "Bağlantı tablosundaki kayıtlar: genel = internetten gelen, özel = yerel ağdan.",
       "gridPos": {
         "x": 6,
-        "y": 27,
+        "y": 40,
         "w": 18,
         "h": 7
       },
@@ -1380,7 +1980,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -1396,7 +1996,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -1448,7 +2048,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 35,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -1525,7 +2125,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 56,
         "w": 8,
         "h": 8
       },
@@ -1578,7 +2178,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 43,
+        "y": 56,
         "w": 8,
         "h": 8
       },
@@ -1631,7 +2231,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 43,
+        "y": 56,
         "w": 8,
         "h": 8
       },
@@ -1684,7 +2284,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 51,
+        "y": 64,
         "w": 24,
         "h": 6
       },
@@ -1728,11 +2328,11 @@
     {
       "id": 15,
       "type": "row",
-      "title": "Extender sistem",
+      "title": "Cihaz sistemi",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 57,
+        "y": 70,
         "w": 24,
         "h": 1
       },
@@ -1748,15 +2348,15 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 71,
         "w": 8,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "keenetic_mesh_member_cpu_load",
-          "legendFormat": "{{name}}",
+          "expr": "keenetic_system_cpu_load_percent",
+          "legendFormat": "{{device}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -1789,7 +2389,8 @@
         "tooltip": {
           "mode": "multi"
         }
-      }
+      },
+      "description": "Cihaz başına CPU yükü (router'ın son ~30 sn ortalaması)."
     },
     {
       "id": 17,
@@ -1801,15 +2402,15 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 58,
+        "y": 71,
         "w": 8,
         "h": 8
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "keenetic_mesh_member_memory_used_kb / keenetic_mesh_member_memory_total_kb * 100",
-          "legendFormat": "{{name}}",
+          "expr": "keenetic_system_memory_used_bytes / keenetic_system_memory_total_bytes * 100",
+          "legendFormat": "{{device}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -1845,6 +2446,71 @@
       }
     },
     {
+      "id": 46,
+      "type": "table",
+      "title": "Açık kalma süresi",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 71,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (device, text) (keenetic_system_uptime_text)",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "description": "Cihazın son yeniden başlatmadan beri açık kalma süresi. Yeniden başlayınca Telegram uyarısı gelir.",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "device": 0,
+              "text": 1
+            },
+            "renameByName": {
+              "device": "Cihaz",
+              "text": "Açık kalma süresi"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Cihaz"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": 18,
       "type": "timeseries",
       "title": "Ethernet portları (Mbps, 0=kapalı)",
@@ -1854,9 +2520,9 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 58,
+        "y": 75,
         "w": 8,
-        "h": 8
+        "h": 4
       },
       "targets": [
         {
@@ -1903,7 +2569,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 66,
+        "y": 79,
         "w": 24,
         "h": 1
       },
@@ -1919,7 +2585,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 67,
+        "y": 80,
         "w": 24,
         "h": 10
       },
@@ -2084,7 +2750,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 77,
+        "y": 90,
         "w": 24,
         "h": 9
       },
@@ -2133,7 +2799,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 86,
+        "y": 99,
         "w": 24,
         "h": 1
       },
@@ -2150,7 +2816,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 87,
+        "y": 100,
         "w": 24,
         "h": 13
       },
@@ -2327,7 +2993,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 100,
+        "y": 113,
         "w": 12,
         "h": 8
       },
@@ -2422,7 +3088,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 100,
+        "y": 113,
         "w": 12,
         "h": 8
       },
@@ -2518,7 +3184,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 108,
+        "y": 121,
         "w": 24,
         "h": 9
       },
@@ -2590,7 +3256,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 117,
+        "y": 130,
         "w": 24,
         "h": 1
       },
@@ -2607,7 +3273,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 131,
         "w": 12,
         "h": 7
       },
@@ -2766,7 +3432,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 118,
+        "y": 131,
         "w": 12,
         "h": 7
       },
