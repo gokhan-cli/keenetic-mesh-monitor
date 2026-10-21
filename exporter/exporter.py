@@ -300,6 +300,7 @@ class MeshCollector:
     def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam):
         self.c = client
         self.roam = roam
+        self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
         self.syslog = syslog
         self.security = security
@@ -309,14 +310,33 @@ class MeshCollector:
         self.clients = clients
 
     def _hostnames(self):
+        """MAC -> cihaz adı. Aynı liste cihaz başına trafik için de kullanılır."""
         try:
-            hosts = as_list(self.c.get("show/ip/hotspot"), "host")
-            return {h.get("mac", "").lower(): (AUTO_NAME_SUFFIX.sub("", h.get("name") or "")
-                                               or h.get("hostname") or "")
-                    for h in hosts if h.get("mac")}
+            self.hosts = as_list(self.c.get("show/ip/hotspot"), "host")
         except Exception as e:  # isim eşlemesi opsiyonel
             log.debug("hotspot okunamadı: %s", e)
-            return {}
+            self.hosts = []
+        return {h.get("mac", "").lower(): (AUTO_NAME_SUFFIX.sub("", h.get("name") or "")
+                                           or h.get("hostname") or "")
+                for h in self.hosts if h.get("mac")}
+
+    def _host_traffic(self, names):
+        """Router üzerinden geçen trafik (internet, VPN); aynı ağdaki cihazlar
+        arası yerel trafik dahil değil. Sayaçlar router açıldığından beri birikir,
+        cihaz bağlanıp kopunca sıfırlanmaz."""
+        L = ["mac", "name"]
+        rx = CounterMetricFamily("keenetic_client_receive_bytes", "Cihazın router üzerinden aldığı (indirdiği) bayt", labels=L)
+        tx = CounterMetricFamily("keenetic_client_transmit_bytes", "Cihazın router üzerinden gönderdiği (yüklediği) bayt", labels=L)
+        for h in self.hosts:
+            mac = h.get("mac", "").lower()
+            r, t = num(h.get("rxbytes")), num(h.get("txbytes"))
+            if not mac or not (r or t):
+                continue
+            lv = [mac, names.get(mac) or mac]
+            rx.add_metric(lv, r or 0)
+            tx.add_metric(lv, t or 0)
+        yield rx
+        yield tx
 
     def collect(self):
         up = GaugeMetricFamily("keenetic_up", "RCI erişimi başarılı mı (1/0)")
@@ -333,6 +353,7 @@ class MeshCollector:
         up.add_metric([], 1)
         yield up
         yield from self._members(members, names)
+        yield from self._host_traffic(names)
         yield from self._internet()
         if SYSTEM_INTERVAL:
             yield from self._system()

@@ -68,6 +68,7 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
 | `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
 | `keenetic_system_*` | Cihaz başına (controller ve extender'lar) CPU yükü, bellek ve açık kalma süresi |
+| `keenetic_client_receive_bytes_total` / `_transmit_bytes_total` | Cihaz başına router üzerinden indirilen / yüklenen bayt (internet ve VPN; yerel ağ içi trafik dahil değil). Router açıldığından beri birikir |
 | `keenetic_mesh_roam_events_total` | Mesh dolaşım günlüğünden istemci başına olaylar (`event`: roam = erişim noktası/bant değiştirdi, join = bağlandı, leave = ayrıldı), nereden/nereye (cihaz ve bant) ve yöntem (`ft` = 802.11r, `pmk`). Exporter açıldıktan sonraki olaylar sayılır |
 | `keenetic_mesh_roam_event` | Son 100 olay (değer = olay zamanı); dashboard'daki "Son olaylar" tablosu |
 | `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |

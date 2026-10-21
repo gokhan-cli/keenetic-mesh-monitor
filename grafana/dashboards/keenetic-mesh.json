@@ -995,13 +995,234 @@
       }
     },
     {
+      "id": 52,
+      "type": "row",
+      "title": "Cihaz başına trafik",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 53,
+      "type": "table",
+      "title": "En çok veri kullananlar (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 10,
+        "h": 10
+      },
+      "description": "Seçili zaman aralığında cihaz başına indirilen ve yüklenen veri. Router üzerinden geçen trafik sayılır (internet ve VPN); aynı ağdaki cihazlar arası yerel trafik dahil değildir.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (increase(keenetic_client_receive_bytes_total[$__range]))",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (increase(keenetic_client_transmit_bytes_total[$__range]))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "binary": {
+              "left": "Value #A",
+              "operator": "+",
+              "right": "Value #B"
+            },
+            "alias": "Toplam"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "name": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Toplam": 3
+            },
+            "renameByName": {
+              "name": "Cihaz",
+              "Value #A": "İndirme",
+              "Value #B": "Yükleme"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "all",
+            "filters": [
+              {
+                "fieldName": "Toplam",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Toplam",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "decimals": 1,
+          "custom": {
+            "minWidth": 70
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Toplam"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 54,
+      "type": "timeseries",
+      "title": "Cihaz başına indirme hızı (en yüksek 8)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 24,
+        "w": 14,
+        "h": 10
+      },
+      "description": "O anda en çok indiren 8 cihazın hızı. Hattı kimin doldurduğunu görmek için.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(8, sum by (name) (rate(keenetic_client_receive_bytes_total[$__rate_interval])) * 8) > 0",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 30,
       "type": "row",
       "title": "Yazılım",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 34,
         "w": 24,
         "h": 1
       },
@@ -1018,7 +1239,7 @@
       "description": "Her cihazın takip ettiği kanal (Sistem → Güncelleme) ve o kanalda yeni sürüm olup olmadığı. Saatte bir kontrol edilir (FIRMWARE_INTERVAL).",
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 35,
         "w": 12,
         "h": 7
       },
@@ -1137,7 +1358,7 @@
       "description": "LTS / Kararlı / Önizleme / Geliştirici kanallarındaki son sürüm. 'Daha yeni' = cihazda kurulu olandan yeni.",
       "gridPos": {
         "x": 12,
-        "y": 24,
+        "y": 35,
         "w": 12,
         "h": 7
       },
@@ -1235,7 +1456,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 42,
         "w": 24,
         "h": 1
       },
@@ -1252,7 +1473,7 @@
       "description": "Router → Sistem Güvenliği → Kimlik Doğrulama Güvenliği. Bir IP, izleme aralığı içinde eşik kadar hatalı giriş yaparsa kilitleme süresi boyunca engellenir. Engelli = şu anda engellenen IP sayısı; Takipte = hatalı giriş yapmış ama henüz engellenmemiş IP sayısı; Eşik/Kilit/Aralık = router ayarları. Toplam, router açıldığından beri sayılır.",
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 43,
         "w": 12,
         "h": 8
       },
@@ -1583,7 +1804,7 @@
       "description": "Router'ların uzak syslog'undan: giriş korumasının engellediği IP'ler (\"ban remote host\") ve router'ın kötü niyetli saydığı istekler (\"malicious request\"). Üstteki zaman aralığına göre süzülür: yalnız o aralıkta görülen IP'ler listelenir, Engelleme ve Kötü istek o aralıktaki sayılardır. Son istekler exporter'ın belleğindeki son 5 yoldur (exporter yeniden başlayınca boşalır). IP'ye tıklayınca AbuseIPDB'de açılır. Liste hiç dolmuyorsa: router'da Diagnostik → Sistem günlüğü → uzak sunucu bu makine mi?",
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 43,
         "w": 12,
         "h": 8
       },
@@ -1853,7 +2074,7 @@
       "description": "Router → Sistem Güvenliği → Bağlantı Limitleri. İnternetten gelen bağlantılar eşiği aşarsa koruma devreye girer.",
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 51,
         "w": 6,
         "h": 7
       },
@@ -1927,7 +2148,7 @@
       "description": "Bağlantı tablosundaki kayıtlar: genel = internetten gelen, özel = yerel ağdan.",
       "gridPos": {
         "x": 6,
-        "y": 40,
+        "y": 51,
         "w": 18,
         "h": 7
       },
@@ -1980,7 +2201,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 58,
         "w": 24,
         "h": 1
       },
@@ -1996,7 +2217,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 59,
         "w": 12,
         "h": 8
       },
@@ -2048,7 +2269,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 59,
         "w": 12,
         "h": 8
       },
@@ -2125,7 +2346,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 56,
+        "y": 67,
         "w": 8,
         "h": 8
       },
@@ -2178,7 +2399,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 56,
+        "y": 67,
         "w": 8,
         "h": 8
       },
@@ -2231,7 +2452,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 56,
+        "y": 67,
         "w": 8,
         "h": 8
       },
@@ -2284,7 +2505,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 75,
         "w": 24,
         "h": 6
       },
@@ -2332,7 +2553,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 70,
+        "y": 81,
         "w": 24,
         "h": 1
       },
@@ -2348,7 +2569,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 82,
         "w": 9,
         "h": 8
       },
@@ -2402,7 +2623,7 @@
       },
       "gridPos": {
         "x": 9,
-        "y": 71,
+        "y": 82,
         "w": 9,
         "h": 8
       },
@@ -2455,7 +2676,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 71,
+        "y": 82,
         "w": 6,
         "h": 8
       },
@@ -2520,7 +2741,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 90,
         "w": 24,
         "h": 7
       },
@@ -2569,7 +2790,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 86,
+        "y": 97,
         "w": 24,
         "h": 1
       },
@@ -2585,7 +2806,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 87,
+        "y": 98,
         "w": 24,
         "h": 10
       },
@@ -2750,7 +2971,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 97,
+        "y": 108,
         "w": 24,
         "h": 9
       },
@@ -2799,7 +3020,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 106,
+        "y": 117,
         "w": 24,
         "h": 1
       },
@@ -2815,7 +3036,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 107,
+        "y": 118,
         "w": 14,
         "h": 10
       },
@@ -2990,7 +3211,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 107,
+        "y": 118,
         "w": 10,
         "h": 10
       },
@@ -3136,7 +3357,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 117,
+        "y": 128,
         "w": 24,
         "h": 8
       },
@@ -3186,7 +3407,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 125,
+        "y": 136,
         "w": 24,
         "h": 1
       },
@@ -3203,7 +3424,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 126,
+        "y": 137,
         "w": 24,
         "h": 13
       },
@@ -3380,7 +3601,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 139,
+        "y": 150,
         "w": 12,
         "h": 8
       },
@@ -3475,7 +3696,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 139,
+        "y": 150,
         "w": 12,
         "h": 8
       },
@@ -3571,7 +3792,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 147,
+        "y": 158,
         "w": 24,
         "h": 9
       },
@@ -3643,7 +3864,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 156,
+        "y": 167,
         "w": 24,
         "h": 1
       },
@@ -3660,7 +3881,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 157,
+        "y": 168,
         "w": 12,
         "h": 7
       },
@@ -3819,7 +4040,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 157,
+        "y": 168,
         "w": 12,
         "h": 7
       },
@@ -3867,7 +4088,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 175,
         "w": 24,
         "h": 8
       },
