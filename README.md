@@ -59,7 +59,7 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_wifi_client_*` | Wi-Fi istemcileri; `device` = bağlı olduğu cihaz (controller ya da mesh üyesi) |
 | `keenetic_wifi_neighbor_rssi_dbm` / `_quality` | Çevredeki Wi-Fi ağları (site survey; `scanner` = tarayan cihaz, SSID, BSSID, kanal, genişlik, şifreleme) |
 | `keenetic_wifi_neighbor_channel` | Çevredeki ağın kanalı (değer olarak); komşuların kanal değiştirmesi grafikte izlenir |
-| `keenetic_radio_channel` / `_channel_width_mhz` / `_channel_width_configured_mhz` | Cihaz başına radyo durumu; gerçek genişlik ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) dashboard'da "Düşük" görünür |
+| `keenetic_radio_channel` / `_channel_width_mhz` / `_channel_width_configured_mhz` | Cihaz başına radyo durumu; gerçek genişlik ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) dashboard'da "Düşük" görünür. `keenetic_radio_temperature_celsius`: radyo sıcaklığı |
 | `keenetic_firmware_info` / `_update_available` / `_channel_newer` | Kurulu yazılım, takip edilen kanal (LTS/Kararlı/Önizleme/Geliştirici) ve kanallardaki son sürümler |
 | `keenetic_lockout_*` | Giriş koruması (Sistem Güvenliği → Kimlik Doğrulama Güvenliği), cihaz ve protokol (http/telnet/ssh) başına: açık mı, şu an engellenen / takip edilen / son 1 saatte / toplam engellenen IP sayısı, eşik ve süreler |
 | `keenetic_conntrack_*` | Bağlantı taşması (DoS) koruması: açık mı, devrede mi, eşik (%), bağlantı sayıları (`scope` = public/private) ve tablo kapasitesi |
@@ -115,6 +115,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
+| 🟠 Radyo ısınıyor | Bir Wi-Fi radyosu 15 dk boyunca 80 °C üzerindeyse (normalde 50–65 °C) |
 | 🔵 Yazılım güncellemesi var | Takip edilen kanalda yeni sürüm çıkarsa (haftada bir hatırlatılır) |
 
 Sorun düzelince "✅ Düzeldi" mesajı gelir. Bir uyarı en fazla günde bir kez tekrarlanır. Kurallar Grafana'da **Alerting → Alert rules** altında görünür; provisioning ile geldikleri için arayüzden değiştirilemez, değişiklik `rules.yml` üzerinden yapılır.

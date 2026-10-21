@@ -2349,7 +2349,7 @@
       "gridPos": {
         "x": 0,
         "y": 71,
-        "w": 8,
+        "w": 9,
         "h": 8
       },
       "targets": [
@@ -2401,9 +2401,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 8,
+        "x": 9,
         "y": 71,
-        "w": 8,
+        "w": 9,
         "h": 8
       },
       "targets": [
@@ -2454,10 +2454,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 71,
-        "w": 8,
-        "h": 4
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -2519,10 +2519,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 16,
-        "y": 75,
-        "w": 8,
-        "h": 4
+        "x": 0,
+        "y": 79,
+        "w": 24,
+        "h": 7
       },
       "targets": [
         {
@@ -2550,7 +2550,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "calcs": [
             "lastNotNull",
             "min",
@@ -2569,7 +2569,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 86,
         "w": 24,
         "h": 1
       },
@@ -2585,7 +2585,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 80,
+        "y": 87,
         "w": 24,
         "h": 10
       },
@@ -2750,7 +2750,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 90,
+        "y": 97,
         "w": 24,
         "h": 9
       },
@@ -2799,7 +2799,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 99,
+        "y": 106,
         "w": 24,
         "h": 1
       },
@@ -2815,7 +2815,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 100,
+        "y": 107,
         "w": 14,
         "h": 10
       },
@@ -2990,7 +2990,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 100,
+        "y": 107,
         "w": 10,
         "h": 10
       },
@@ -3136,7 +3136,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 110,
+        "y": 117,
         "w": 24,
         "h": 8
       },
@@ -3186,7 +3186,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 125,
         "w": 24,
         "h": 1
       },
@@ -3203,7 +3203,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 119,
+        "y": 126,
         "w": 24,
         "h": 13
       },
@@ -3380,7 +3380,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 132,
+        "y": 139,
         "w": 12,
         "h": 8
       },
@@ -3475,7 +3475,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 132,
+        "y": 139,
         "w": 12,
         "h": 8
       },
@@ -3571,7 +3571,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 140,
+        "y": 147,
         "w": 24,
         "h": 9
       },
@@ -3643,7 +3643,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 149,
+        "y": 156,
         "w": 24,
         "h": 1
       },
@@ -3660,7 +3660,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 150,
+        "y": 157,
         "w": 12,
         "h": 7
       },
@@ -3819,7 +3819,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 150,
+        "y": 157,
         "w": 12,
         "h": 7
       },
@@ -3851,6 +3851,75 @@
           "showLegend": true,
           "displayMode": "list",
           "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 51,
+      "type": "timeseries",
+      "title": "Radyo sıcaklığı",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 164,
+        "w": 24,
+        "h": 8
+      },
+      "description": "Wi-Fi radyolarının sıcaklığı (router'ın bildirdiği). Normalde 50–65 °C; trafik arttıkça yükselir. 80 °C üzeri 15 dk sürerse Telegram uyarısı gelir: cihazın havalandırmasını ve üstünün açık olduğunu kontrol edin.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (device, band) (keenetic_radio_temperature_celsius)",
+          "legendFormat": "{{device}} {{band}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ]
         },
         "tooltip": {
           "mode": "multi"

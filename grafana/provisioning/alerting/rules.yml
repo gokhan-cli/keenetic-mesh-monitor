@@ -235,6 +235,34 @@ groups:
               conditions:
                 - evaluator: { type: gt, params: [0] }
 
+      - uid: keenetic-radio-hot
+        title: Radyo sıcaklığı yüksek
+        condition: B
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Radyo ısınıyor: {{ .Labels.device }} {{ .Labels.band }}"
+          description: "{{ .Labels.device }} {{ .Labels.band }} radyosu 15 dakikadır 80 °C üzerinde ({{ .Values.A }} °C). Normalde 50–65 °C; cihazın havalandırmasını ve üstünün kapalı olmadığını kontrol edin."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Son 5 günde en yüksek 64 °C görüldü; eşik buna göre seçildi
+              expr: 'max by (device, band) (keenetic_radio_temperature_celsius)'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+
       - uid: keenetic-firmware-update
         title: Yazılım güncellemesi var
         condition: B
