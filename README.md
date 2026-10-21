@@ -114,6 +114,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama syslog'dan IP bilgisi gelmediyse (yedek; IP içermez) |
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |
 | 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
+| 🟠 Ping kontrolü başarısız, hat açık | PPPoE bağlı ve ağ geçidi yanıt verirken ping kontrolü 3 dk başarısızsa. Router bu durumda IPv4 rotasını kapatıp açar (paket kaybı, VPN kopmaları); genelde kontrol hedefi erişilemiyordur (Otomatik modda captive.keenetic.net) |
 | 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |

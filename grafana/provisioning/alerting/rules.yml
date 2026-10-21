@@ -153,6 +153,37 @@ groups:
               conditions:
                 - evaluator: { type: gt, params: [0] }
 
+      - uid: keenetic-pingcheck-failing
+        title: Ping kontrolü başarısız, hat açık
+        condition: B
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Ping kontrolü başarısız: {{ .Labels.interface }}"
+          description: "{{ .Labels.interface }} bağlı ve ağ geçidi yanıt veriyor, ama ping kontrolü 3 dakikadır başarısız. Router bu durumda IPv4 rotasını kapatıp açar: paket kaybı olur, VPN'ler kopar. Kontrol hedefi erişilemiyor olabilir (Otomatik modda captive.keenetic.net); İnternet → bağlantı ayarları → Ping Check'te hedef olarak 8.8.8.8 ve 1.1.1.1 gibi adresler girin."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Hattın kendisi sağlamken kontrol hedefinin erişilemediği durum (21 Ekim 2026'daki gibi)
+              expr: >-
+                (1 - keenetic_pingcheck_pass)
+                * on(interface) group_left() (keenetic_wan_up == 1)
+                and on() (keenetic_internet_check{check="gateway"} == 1)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
       - uid: keenetic-wan-reconnect
         title: İnternet yeniden bağlandı
         condition: B
