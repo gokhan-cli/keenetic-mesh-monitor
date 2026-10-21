@@ -11,9 +11,11 @@ Kaynaklar:
   /rci/show/ip/hotspot   -> MAC -> cihaz adı eşlemesi
   /rci/show/internet/status, show/interface -> internet, WAN (PPPoE) ve VPN tünelleri
   /rci/show/system       -> cihaz başına CPU, bellek, açık kalma süresi
+  /rci/show/mws/log      -> mesh dolaşım günlüğü (istemci geçişleri, bağlanma/ayrılma)
   syslog (UDP 514)       -> engellenen IP'ler ve kötü niyetli istekler
 """
 import base64
+import calendar
 import hashlib
 import hmac
 import json
@@ -23,6 +25,7 @@ import re
 import socket
 import threading
 import time
+from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
@@ -58,6 +61,10 @@ SECURITY_INTERVAL = int(os.environ.get("SECURITY_INTERVAL", "60"))
 LOCKOUT_PROTOCOLS = ["http", "telnet", "ssh"]
 # Cihaz başına CPU / bellek / açık kalma süresi okuma aralığı (sn, 0 = kapalı)
 SYSTEM_INTERVAL = int(os.environ.get("SYSTEM_INTERVAL", "30"))
+# Mesh dolaşım günlüğü okuma aralığı (sn, 0 = kapalı) ve tabloda tutulan son olay sayısı
+ROAM_INTERVAL = int(os.environ.get("ROAM_INTERVAL", "60"))
+ROAM_RECENT = 100
+WIFI_BANDS = {0: "2.4 GHz", 1: "5 GHz", 2: "6 GHz"}
 # VPN sayılan arayüz türleri (show/interface "type")
 VPN_TYPES = {"openvpn", "wireguard", "ipsec", "ike", "l2tp", "pptp", "sstp", "openconnect", "zerotier"}
 # Router'ların uzak syslog'u (Diagnostik → Sistem günlüğü) için UDP port (0 = kapalı)
@@ -209,6 +216,18 @@ class KeeneticClient:
             r.raise_for_status()
             return r.json()
 
+    def post(self, path, data=None):
+        """Bazı komutlar (ör. show mws log) GET'te 404 verir, web arayüzü gibi
+        POST ile okunur. Yine yalnız okuma: yol bir show komutudur."""
+        url = f"{self.host}/rci/{path.strip('/')}"
+        with self.lock:
+            r = self.s.post(url, json=data or {}, timeout=TIMEOUT)
+            if r.status_code == 401:
+                self._auth()
+                r = self.s.post(url, json=data or {}, timeout=TIMEOUT)
+            r.raise_for_status()
+            return r.json()
+
 
 _clients, _clients_lock = {}, threading.Lock()
 
@@ -278,8 +297,9 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system):
+    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam):
         self.c = client
+        self.roam = roam
         self.system = system
         self.syslog = syslog
         self.security = security
@@ -316,6 +336,8 @@ class MeshCollector:
         yield from self._internet()
         if SYSTEM_INTERVAL:
             yield from self._system()
+        if ROAM_INTERVAL:
+            yield from self._roam()
         if COLLECT_CLIENTS:
             yield from self._clients(names)
         if SURVEY_INTERFACES:
@@ -681,6 +703,25 @@ class MeshCollector:
         yield from fam.values()
         yield uptext
 
+    def _roam(self):
+        L = ["mac", "name", "event", "from_device", "from_band", "to_device", "to_band", "method"]
+        total = CounterMetricFamily("keenetic_mesh_roam_events",
+                                    "Mesh olayları (event: roam = erişim noktası değiştirdi, join = bağlandı, "
+                                    "leave = ayrıldı); exporter açıldıktan sonrakiler", labels=L)
+        recent = GaugeMetricFamily("keenetic_mesh_roam_event", "Son mesh olayları; değer = olay zamanı (unix)",
+                                   labels=["id", "mac", "name", "event", "from", "to", "method"])
+        counts, events, names = self.roam.snapshot()
+        for key, n in counts.items():
+            mac = key[0]
+            total.add_metric([mac, names.get(mac) or mac] + list(key[1:]), n)
+        for ev in events:
+            _, event, fdev, fband, tdev, tband, method = ev["key"]
+            recent.add_metric([str(ev["id"]), ev["mac"], names.get(ev["mac"]) or ev["mac"], event,
+                               " · ".join(x for x in (fdev, fband) if x), " · ".join(x for x in (tdev, tband) if x),
+                               method], ev["time"])
+        yield total
+        yield recent
+
     def _syslog(self):
         L = ["device", "ip"]
         seen = GaugeMetricFamily("keenetic_security_ip_last_seen_seconds",
@@ -885,6 +926,103 @@ class SecurityWorker(DeviceWorker):
         return {"lockout": lockout, "conntrack": conntrack}
 
 
+class RoamWorker(DeviceWorker):
+    """Mesh dolaşım günlüğü (show mws log). Controller son ~1000 olayı tutar:
+    istemcinin erişim noktası değiştirmesi (802.11r "ft" ya da "pmk" önbelleğiyle),
+    bağlanması ve ayrılması. Erişim noktası MAC'i cihaz adına çevrilir."""
+
+    def __init__(self):
+        super().__init__("roam", ROAM_INTERVAL)
+        self.last_id = None
+        self.counts = {}   # (mac, olay, nereden, bant, nereye, bant, yöntem) -> sayı
+        self.events = []   # son olaylar, en yenisi sonda
+        self.names = {}    # istemci MAC -> ad
+        self.aps, self.aps_at = {}, 0  # erişim noktası MAC -> cihaz adı
+
+    def snapshot(self):
+        with self.lock:
+            return dict(self.counts), list(self.events), dict(self.names)
+
+    def _ap_map(self):
+        if self.aps and time.time() - self.aps_at < 600:
+            return self.aps
+        aps = {}
+        for name, host in self._devices():
+            try:
+                for v in client(host).get("show/interface").values():
+                    if isinstance(v, dict) and v.get("type") == "AccessPoint" and v.get("mac"):
+                        aps[v["mac"].lower()] = name
+            except Exception as e:  # eski eşleme korunur
+                log.warning("roam: %s erişim noktaları okunamadı: %s", name, e)
+        self.aps, self.aps_at = {**self.aps, **aps}, time.time()
+        return self.aps
+
+    @staticmethod
+    def _utc_offset(clock):
+        """Router saat dilimi (günlük zamanları yereldir ve yıl içermez)."""
+        tz = (clock.get("tz") or [{}])[0]
+        off = tz.get("stdoffset", 0)
+        if clock.get("dst") == "active":
+            off += tz.get("dstoffset", 0)
+        return off
+
+    @staticmethod
+    def _when(ts, offset):
+        now = time.time()
+        year = time.gmtime(now + offset).tm_year
+        for y in (year, year - 1):  # yılbaşından hemen sonra geçen yılın kayıtları
+            try:
+                t = calendar.timegm(datetime.strptime(f"{y} {ts}", "%Y %b %d %H:%M:%S").timetuple()) - offset
+            except ValueError:
+                return now
+            if t <= now + 86400:
+                return t
+        return now
+
+    def _event(self, it, aps, offset):
+        ap, left = (it.get("ap") or "").lower(), it.get("left") or {}
+        lap = (left.get("ap") or "").lower()
+        event = "roam" if ap and lap else ("join" if ap else "leave")
+        key = (it.get("mac", "").lower(), event,
+               aps.get(lap, lap) if lap else "", WIFI_BANDS.get(left.get("band"), "") if lap else "",
+               aps.get(ap, ap) if ap else "", WIFI_BANDS.get(it.get("band"), "") if ap else "",
+               it.get("roam") or "")
+        return {"id": it.get("id", 0), "mac": key[0], "key": key, "time": self._when(it.get("timestamp", ""), offset)}
+
+    def run(self):
+        while True:
+            try:
+                self._poll()
+            except Exception as e:  # opsiyonel veri; bir sonraki turda tekrar
+                log.warning("roam: dolaşım günlüğü okunamadı: %s", e)
+            time.sleep(self.interval)
+
+    def _poll(self):
+        c = client(HOST)
+        entries = sorted(((c.post("show/mws/log").get("log") or {}).values()), key=lambda x: x.get("id", 0))
+        offset = self._utc_offset(c.get("show/clock/date"))
+        aps = self._ap_map()
+        names = {h["mac"].lower(): AUTO_NAME_SUFFIX.sub("", h.get("name") or "") or h.get("hostname") or ""
+                 for h in as_list(c.get("show/ip/hotspot"), "host") if h.get("mac")}
+        first = self.last_id is None
+        if not first and entries and entries[-1].get("id", 0) < self.last_id:
+            self.last_id = 0  # router yeniden başladı, numaralar baştan
+        new = [it for it in entries if first or it.get("id", 0) > self.last_id]
+        with self.lock:
+            for it in new:
+                ev = self._event(it, aps, offset)
+                # İlk okumadaki geçmiş sayılmaz (exporter yeniden başlayınca sayaç sıçramasın),
+                # ama seri 0'dan başlasın ki sonraki ilk olay da increase()'te görünsün
+                self.counts[ev["key"]] = self.counts.get(ev["key"], 0) + (0 if first else 1)
+                self.events.append(ev)
+            self.events = self.events[-ROAM_RECENT:]
+            self.names = names
+            if entries:
+                self.last_id = entries[-1].get("id", 0)
+        if new and not first:
+            log.debug("roam: %d yeni olay", len(new))
+
+
 class SystemWorker(DeviceWorker):
     """Cihaz başına CPU, bellek ve açık kalma süresi (controller dahil)."""
 
@@ -1006,8 +1144,10 @@ if __name__ == "__main__":
     if not PASSWORD:
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
-    security, syslog, system = SecurityWorker(), SyslogWorker(), SystemWorker()
-    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system))
+    security, syslog, system, roam = SecurityWorker(), SyslogWorker(), SystemWorker(), RoamWorker()
+    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system, roam))
+    if ROAM_INTERVAL:
+        roam.start()
     if SYSTEM_INTERVAL:
         system.start()
     if SYSLOG_PORT:

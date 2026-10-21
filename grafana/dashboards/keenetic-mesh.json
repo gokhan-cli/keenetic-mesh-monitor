@@ -2793,13 +2793,400 @@
       }
     },
     {
+      "id": 47,
+      "type": "row",
+      "title": "Mesh dolaşımı",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 99,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 48,
+      "type": "table",
+      "title": "Son olaylar",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 100,
+        "w": 14,
+        "h": 10
+      },
+      "description": "Router'ın mesh dolaşım günlüğünden son 100 olay. Dolaşım = istemci erişim noktası (ya da bant) değiştirdi; Bağlandı / Ayrıldı = Wi-Fi'a bağlandı ya da koptu. Yöntem: Hızlı (802.11r) kesintisiz geçiştir; PMK önbelleği de hızlıdır ama yeniden el sıkışma yapar.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_mesh_roam_event * 1000",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "id": true,
+              "mac": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "Value": 0,
+              "name": 1,
+              "event": 2,
+              "from": 3,
+              "to": 4,
+              "method": 5
+            },
+            "renameByName": {
+              "Value": "Zaman",
+              "name": "İstemci",
+              "event": "Olay",
+              "from": "Nereden",
+              "to": "Nereye",
+              "method": "Yöntem"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Zaman",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Zaman"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocalNoDateIfToday"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "İstemci"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Olay"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "roam": {
+                        "text": "Dolaşım",
+                        "color": "blue"
+                      },
+                      "join": {
+                        "text": "Bağlandı",
+                        "color": "green"
+                      },
+                      "leave": {
+                        "text": "Ayrıldı",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yöntem"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ft": {
+                        "text": "Hızlı (802.11r)"
+                      },
+                      "pmk": {
+                        "text": "PMK önbelleği"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 49,
+      "type": "table",
+      "title": "İstemci başına (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 100,
+        "w": 10,
+        "h": 10
+      },
+      "description": "Seçili zaman aralığında istemci başına dolaşım, bağlanma ve kopma sayısı. Çok sayıda dolaşım (ör. saatte 10+) cihazın iki erişim noktası arasında gidip geldiğini (ping-pong) gösterir; genelde iki noktanın sinyali o yerde eşit olduğunda olur. Sayım exporter açıldıktan sonraki olaylardır.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum by (name) (increase(keenetic_mesh_roam_events_total{event=\"roam\"}[$__range])))",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum by (name) (increase(keenetic_mesh_roam_events_total{event=\"join\"}[$__range])))",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum by (name) (increase(keenetic_mesh_roam_events_total{event=\"leave\"}[$__range])))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "name": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
+            },
+            "renameByName": {
+              "name": "İstemci",
+              "Value #A": "Dolaşım",
+              "Value #B": "Bağlanma",
+              "Value #C": "Kopma"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "all",
+            "filters": [
+              {
+                "fieldName": "Dolaşım",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "fieldName": "Bağlanma",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "fieldName": "Kopma",
+                "config": {
+                  "id": "lowerOrEqual",
+                  "options": {
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Dolaşım",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "İstemci"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 50,
+      "type": "timeseries",
+      "title": "Saatlik dolaşım (istemci başına)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 110,
+        "w": 24,
+        "h": 8
+      },
+      "description": "İstemcinin son 1 saatteki dolaşım sayısı. Sürekli yüksek olan çizgi, o cihazın erişim noktaları arasında gidip geldiğini gösterir.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum by (name) (increase(keenetic_mesh_roam_events_total{event=\"roam\"}[1h]))) > 0",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "decimals": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "id": 22,
       "type": "row",
       "title": "Çevredeki Wi-Fi ağları",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 99,
+        "y": 118,
         "w": 24,
         "h": 1
       },
@@ -2816,7 +3203,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 100,
+        "y": 119,
         "w": 24,
         "h": 13
       },
@@ -2993,7 +3380,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 113,
+        "y": 132,
         "w": 12,
         "h": 8
       },
@@ -3088,7 +3475,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 113,
+        "y": 132,
         "w": 12,
         "h": 8
       },
@@ -3184,7 +3571,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 121,
+        "y": 140,
         "w": 24,
         "h": 9
       },
@@ -3256,7 +3643,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 130,
+        "y": 149,
         "w": 24,
         "h": 1
       },
@@ -3273,7 +3660,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 131,
+        "y": 150,
         "w": 12,
         "h": 7
       },
@@ -3432,7 +3819,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 131,
+        "y": 150,
         "w": 12,
         "h": 7
       },
