@@ -1,6 +1,6 @@
 # Keenetic Mesh Monitor
 
-Keenetic controller'ın RCI API'sinden mesh backhaul (hız, sinyal, MCS, kanal genişliği, akış), extender sistem durumu ve Wi-Fi istemcilerini toplayıp Grafana'da gösterir.
+Keenetic controller'ın RCI API'sinden mesh bağlantısı (backhaul: hız, sinyal, MCS, kanal genişliği, akış), node sistem durumu ve Wi-Fi istemcilerini toplayıp Grafana'da gösterir.
 
 ```
 Keenetic controller (RCI) → keenetic-exporter → Prometheus (90 gün) → Grafana :3000
@@ -49,13 +49,13 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 
 | Metrik | Açıklama |
 |---|---|
-| `keenetic_mesh_backhaul_txrate_mbps` | Backhaul fiziksel hız |
-| `keenetic_mesh_backhaul_rssi_dbm` | Backhaul sinyal |
+| `keenetic_mesh_backhaul_txrate_mbps` | Mesh bağlantısı fiziksel hız |
+| `keenetic_mesh_backhaul_rssi_dbm` | Mesh bağlantısı sinyal |
 | `keenetic_mesh_backhaul_mcs` / `_spatial_streams` / `_channel_width_mhz` | Bağlantı kalitesi |
 | `keenetic_mesh_backhaul_uptime_seconds` | Sıfırlanma = backhaul koptu |
 | `keenetic_mesh_backhaul_wireless` | 1 = Wi-Fi, 0 = kablolu backhaul |
-| `keenetic_mesh_member_cpu_load`, `_memory_*`, `_associations` | Extender sistem |
-| `keenetic_mesh_port_link_up` / `_speed_mbps` | Extender Ethernet portları |
+| `keenetic_mesh_member_cpu_load`, `_memory_*`, `_associations` | Node sistemi |
+| `keenetic_mesh_port_link_up` / `_speed_mbps` | Node Ethernet portları |
 | `keenetic_wifi_client_*` | Wi-Fi istemcileri; `device` = bağlı olduğu cihaz (controller ya da mesh üyesi) |
 | `keenetic_wifi_neighbor_rssi_dbm` / `_quality` | Çevredeki Wi-Fi ağları (site survey; `scanner` = tarayan cihaz, SSID, BSSID, kanal, genişlik, şifreleme) |
 | `keenetic_wifi_neighbor_channel` | Çevredeki ağın kanalı (değer olarak); komşuların kanal değiştirmesi grafikte izlenir |
@@ -67,7 +67,7 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_wan_*` | İnternete çıkan arayüz (PPPoE vb.): bağlı mı, oturum süresi, alınan/gönderilen bayt, hata ve düşen paket sayaçları |
 | `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
 | `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
-| `keenetic_system_*` | Cihaz başına (controller ve extender'lar) CPU yükü, bellek ve açık kalma süresi |
+| `keenetic_system_*` | Cihaz başına (controller ve node'lar) CPU yükü, bellek ve açık kalma süresi |
 | `keenetic_client_receive_bytes_total` / `_transmit_bytes_total` | Cihaz başına router üzerinden indirilen / yüklenen bayt (internet ve VPN; yerel ağ içi trafik dahil değil). Router açıldığından beri birikir; yalnız router'da kayıtlı cihazlar için tutulur |
 | `keenetic_application_receive_bytes_total` / `_transmit_bytes_total` | Uygulama başına indirilen / yüklenen bayt, tüm cihazlar (`app`, `group` etiketleri; kayıtsız cihazlar dahil). Exporter açıldıktan sonrası |
 | `keenetic_mesh_roam_events_total` | Mesh dolaşım günlüğünden istemci başına olaylar (`event`: roam = erişim noktası/bant değiştirdi, join = bağlandı, leave = ayrıldı), nereden/nereye (cihaz ve bant) ve yöntem (`ft` = 802.11r, `pmk`). Exporter açıldıktan sonraki olaylar sayılır |
@@ -79,7 +79,7 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 ## Router günlüğü (syslog)
 
 RCI'da engellenen IP'lerin adresi yok, `monitor` kullanıcısı da günlüğü okuyamıyor. Bu yüzden router'lar günlüklerini exporter'a gönderir:
-her cihazda (controller ve extender'lar) **Diagnostik → Sistem günlüğü → uzak sunucu** = bu makinenin IP'si (UDP 514).
+her cihazda (controller ve node'lar) **Diagnostik → Sistem günlüğü → uzak sunucu** = bu makinenin IP'si (UDP 514).
 Exporter yalnız controller'dan ve mesh üyelerinden gelen satırları kabul eder ve sadece şunları ayıklar:
 
 - `Netfilter::Lockout::Manager: "Http": ban remote host <IP> for 15 minutes.` → engellenen IP
@@ -108,7 +108,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 |---|---|
 | 🔴 Router'a erişilemiyor | Exporter 5 dk boyunca controller'dan veri alamazsa (`keenetic_up`) ya da exporter'ın kendisi çalışmıyorsa |
 | 🔴 Mesh üyesi kayboldu | Son 1 saatte görülen bir üye listeden çıkarsa ya da internete erişemezse (3 dk) |
-| 🟠 Backhaul yeniden bağlandı | `keenetic_mesh_backhaul_uptime_seconds` son 10 dk'da sıfırlandıysa |
+| 🟠 Mesh bağlantısı yeniden kuruldu | `keenetic_mesh_backhaul_uptime_seconds` son 10 dk'da sıfırlandıysa |
 | 🟠 Kanal genişliği düştü | Bir radyo 15 dk boyunca ayarlanandan dar çalışırsa. Süre, yeniden başlatma sonrası ~10 dk'lık DFS dinlemesi uyarı üretmesin diye 15 dk seçildi |
 | 🔴 IP engellendi | Syslog'da "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
 | 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama syslog'dan IP bilgisi gelmediyse (yedek; IP içermez) |
@@ -141,10 +141,10 @@ KeeneticOS 5.x `x-ndw4-interactive` giriş yöntemini kullanır (Argon2id + HMAC
 - Grafana dışında portlar dışarı açılmaz. Gerekirse 3000'i yalnızca yönetim ağına açın.
 - Toplama aralığı 30 sn (`prometheus/prometheus.yml`).
 - Çevredeki ağ taraması bant başına birkaç saniye sürdüğü için her toplamada yapılmaz; varsayılan 5 dk'da bir (`SITE_SURVEY_INTERVAL`). Kapatmak için `SITE_SURVEY_INTERFACES=` boş bırakılır.
-- Tarama ana router'dan ve her mesh üyesinden (IP'leri `show mws member`'dan otomatik alınır) ayrı ayrı yapılır; her cihaz kendi konumundaki ağları görür. Extender'lara da aynı `monitor` kullanıcısıyla girilir.
-- Radyo durumu (kanal, gerçek/ayarlanan genişlik, sıcaklık) her cihazdan arka planda 1 dk'da bir okunur (`RADIO_INTERVAL`). Backhaul için ayrı genişlik ayarı yoktur; controller'ın 5 GHz radyosu hangi genişlikte çalışıyorsa backhaul da onu kullanır.
+- Tarama ana router'dan ve her mesh üyesinden (IP'leri `show mws member`'dan otomatik alınır) ayrı ayrı yapılır; her cihaz kendi konumundaki ağları görür. Node'lara da aynı `monitor` kullanıcısıyla girilir.
+- Radyo durumu (kanal, gerçek/ayarlanan genişlik, sıcaklık) her cihazdan arka planda 1 dk'da bir okunur (`RADIO_INTERVAL`). Mesh bağlantısı (backhaul) için ayrı genişlik ayarı yoktur; controller'ın 5 GHz radyosu hangi genişlikte çalışıyorsa mesh bağlantısı da onu kullanır.
 - Yazılım güncellemeleri her cihazda saatte bir kontrol edilir (`FIRMWARE_INTERVAL`, 0 = kapalı). Router her kontrolde Keenetic güncelleme sunucusuna bağlanır. Exporter yalnızca okur; güncelleme kurmaz. Kanal API'de `lts-*`, `stable`, `preview`, `draft` (= Geliştirici) olarak geçer.
-- Sistem Güvenliği sayaçları her cihazdan 1 dk'da bir okunur (`SECURITY_INTERVAL`, 0 = kapalı). Cihazda bulunmayan protokoller (ör. extender'da SSH) atlanır. Exporter yalnızca okur; koruma ayarlarını değiştirmez.
+- Sistem Güvenliği sayaçları her cihazdan 1 dk'da bir okunur (`SECURITY_INTERVAL`, 0 = kapalı). Cihazda bulunmayan protokoller (ör. node'da SSH) atlanır. Exporter yalnızca okur; koruma ayarlarını değiştirmez.
 - Mesh dolaşım günlüğü (`show mws log`, controller son ~1000 olayı tutar) dakikada bir okunur (`ROAM_INTERVAL`, 0 = kapalı). Bu komut GET'te 404 verir; web arayüzü gibi POST ile okunur, yine yalnızca okumadır.
 - Uygulama bazında trafik dakikada bir okunur (`APP_INTERVAL`, en fazla 150, 0 = kapalı). Kaynak web arayüzündeki Trafik İzleme ile aynıdır: `show ntce summary` son 3 dakikada trafiği olan uygulamaları, `show ntce chart` her biri için 3 sn'lik dilimlerde kesin baytı verir; exporter yeni dilimleri sayaca ekler. Router bu veriyi uygulama düzeyinde tutar, cihaz × uygulama kırılımı yoktur. Bu komutlar da GET'te 404 verir, POST ile okunur.
 - İnternet, WAN ve VPN durumu her toplamada controller'dan okunur. Cihaz başına CPU / bellek / açık kalma süresi 30 sn'de bir okunur (`SYSTEM_INTERVAL`, 0 = kapalı).

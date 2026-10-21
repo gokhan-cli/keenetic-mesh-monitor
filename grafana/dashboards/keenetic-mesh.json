@@ -74,10 +74,10 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "HATA"
+                  "text": "Yok"
                 },
                 "1": {
-                  "text": "OK"
+                  "text": "Var"
                 }
               }
             }
@@ -99,7 +99,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Backhaul hızı",
+      "title": "Mesh bağlantı hızı",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -161,7 +161,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Backhaul sinyal",
+      "title": "Mesh bağlantı sinyali",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -285,7 +285,7 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Extender istemci",
+      "title": "Node istemci sayısı",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -378,17 +378,143 @@
               "mac": "MAC",
               "model": "Model",
               "ip": "IP",
-              "firmware": "Firmware",
-              "uplink": "Uplink",
+              "firmware": "Yazılım",
+              "uplink": "Bağlantı",
               "mode": "Standart",
               "security": "Güvenlik"
+            },
+            "indexByName": {
+              "name": 0,
+              "model": 1,
+              "ip": 2,
+              "mac": 3,
+              "firmware": 4,
+              "uplink": 5,
+              "mode": 6,
+              "security": 7
             }
           }
         }
       ],
       "fieldConfig": {
         "defaults": {},
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uplink"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^WifiMaster0/.*",
+                      "result": {
+                        "text": "Kablosuz (2.4 GHz)"
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^WifiMaster1/.*",
+                      "result": {
+                        "text": "Kablosuz (5 GHz)"
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^WifiMaster2/.*",
+                      "result": {
+                        "text": "Kablosuz (5 GHz-2)"
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^(Gigabit|Ten|Fast)?Ethernet.*|^ISP$",
+                      "result": {
+                        "text": "Kablolu"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mode"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "11be": {
+                        "text": "Wi-Fi 7 (802.11be)"
+                      },
+                      "11ax": {
+                        "text": "Wi-Fi 6 (802.11ax)"
+                      },
+                      "11ac": {
+                        "text": "Wi-Fi 5 (802.11ac)"
+                      },
+                      "11n": {
+                        "text": "Wi-Fi 4 (802.11n)"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "security"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "wpa3-psk": {
+                        "text": "WPA3-Kişisel"
+                      },
+                      "wpa2-psk": {
+                        "text": "WPA2-Kişisel"
+                      },
+                      "wpa2-wpa3-psk": {
+                        "text": "WPA2/WPA3-Kişisel"
+                      },
+                      "wpa3-sae": {
+                        "text": "WPA3-Kişisel"
+                      },
+                      "owe": {
+                        "text": "Açık (OWE şifreli)"
+                      },
+                      "none": {
+                        "text": "Açık (şifresiz)"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "showHeader": true
@@ -2544,7 +2670,7 @@
     {
       "id": 8,
       "type": "row",
-      "title": "Backhaul",
+      "title": "Mesh bağlantısı",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -2557,7 +2683,7 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Backhaul bağlantı hızı",
+      "title": "Mesh bağlantı hızı",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2609,7 +2735,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Backhaul sinyal (RSSI)",
+      "title": "Mesh bağlantı sinyali (RSSI)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2845,7 +2971,7 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Backhaul süresi (kopmalar sıfırlanma olarak görünür)",
+      "title": "Mesh bağlantı süresi (kopmalar sıfırlanma olarak görünür)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4225,7 +4351,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Backhaul, controller'ın 5 GHz genişliğini kullanır.",
+      "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Mesh bağlantısı, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
         "y": 188,

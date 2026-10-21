@@ -71,15 +71,15 @@ groups:
                 - evaluator: { type: gt, params: [0] }
 
       - uid: keenetic-backhaul-reset
-        title: Backhaul yeniden bağlandı
+        title: Mesh bağlantısı yeniden kuruldu
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: { severity: warning }
         annotations:
-          summary: "🟠 Backhaul yeniden bağlandı: {{ .Labels.name }}"
-          description: "{{ .Labels.name }} backhaul bağlantısı son 10 dakikada koptu ve yeniden kuruldu."
+          summary: "🟠 Mesh bağlantısı yeniden kuruldu: {{ .Labels.name }}"
+          description: "{{ .Labels.name }} mesh bağlantısı son 10 dakikada koptu ve yeniden kuruldu."
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
@@ -107,7 +107,7 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: "🟠 Kanal genişliği düştü: {{ .Labels.device }} {{ .Labels.band }}"
-          description: "{{ .Labels.device }} {{ .Labels.band }} radyosu 15 dakikadır ayarlanandan dar çalışıyor (oran {{ .Values.A }}). 5 GHz'te genelde radar (DFS) sonrası olur; backhaul hızı da düşer."
+          description: "{{ .Labels.device }} {{ .Labels.band }} radyosu 15 dakikadır ayarlanandan dar çalışıyor (oran {{ .Values.A }}). 5 GHz'te genelde radar (DFS) sonrası olur; mesh bağlantı hızı da düşer."
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
