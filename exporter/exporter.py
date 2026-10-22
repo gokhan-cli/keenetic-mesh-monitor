@@ -18,6 +18,7 @@ import base64
 import calendar
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -88,6 +89,8 @@ SYSLOG_PORT = int(os.environ.get("SYSLOG_PORT", "514"))
 # Saldıran IP'nin son görülmesinden sonra listede kalma süresi (sn)
 SYSLOG_RETENTION = int(os.environ.get("SYSLOG_RETENTION", "86400"))
 SYSLOG_MAX_IPS = 200
+# Yönetici girişlerinin metrikte kalma süresi (sn)
+SYSLOG_LOGIN_RETENTION = 3600
 # Taramada controller'ın görünen adı (extender'lar mesh'teki adlarıyla görünür)
 CONTROLLER_NAME = os.environ.get("CONTROLLER_NAME", "Ana router")
 # Başarısız girişten sonra yeniden deneme süresi (sn)
@@ -102,6 +105,13 @@ SYSLOG_LINE = re.compile(r"^<\d+>(?:\w{3} [ \d]\d \d\d:\d\d:\d\d )?(\S+) [^:]+: 
 SYSLOG_BAN = re.compile(r'Lockout::Manager: "(\w+)": ban remote host (\S+) for (\d+) minute')
 # Core::Scgi::Handler::GetIndex: malicious request: /wp-login.php [203.0.113.7].
 SYSLOG_MALICIOUS = re.compile(r"malicious request: (.*) \[([0-9A-Fa-f.:]+)\]\.?$")
+# Core::Security::Authority: started a user session [admin#904(password) from
+# https://{http/rci}@203.0.113.7:PPPoE0/ agent Edge 155.0.0 on Windows 10 via browser-direct].
+SYSLOG_LOGIN = re.compile(r"started a user session \[([^#\s]+)#\d+\((\w+)\) from ([\w+]+)://\{[^}]*\}@(.+):([^:/]*)/ "
+                          r"agent (.*?) on (.*?) via ([\w-]+)\]")
+# Keenetic bulutu üzerinden gelen oturumlar: mobil uygulama ve uzaktan yönetim
+# (gerçek kaynak IP görünmez, bulut sunucusunun adresi görünür)
+CLOUD_VIA = {"mobile-app", "rmm-cloud"}
 
 log = logging.getLogger("keenetic-exporter")
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -790,7 +800,10 @@ class MeshCollector:
         msgs = CounterMetricFamily("keenetic_syslog_messages", "Alınan syslog satırı", labels=["device"])
         last = GaugeMetricFamily("keenetic_syslog_last_message_seconds", "Son syslog satırının zamanı (unix)",
                                  labels=["device"])
-        ips, devices = self.syslog.snapshot()
+        login = GaugeMetricFamily("keenetic_admin_login_seconds",
+                                  "Router'a yönetici girişi zamanı (unix; exporter'ın kendi kullanıcısı hariç)",
+                                  labels=["device", "user", "ip", "interface", "client", "scope"])
+        ips, devices, logins = self.syslog.snapshot()
         for (device, ip), st in ips.items():
             lv = [device, ip]
             seen.add_metric(lv, st["last"])
@@ -802,7 +815,11 @@ class MeshCollector:
         for device, (n, at) in devices.items():
             msgs.add_metric([device], n)
             last.add_metric([device], at)
-        yield from (seen, bans, bad, info, until, msgs, last)
+        # Aynı etiketlerle birden çok giriş: en yenisi kalır (liste eskiden yeniye)
+        keys = ("device", "user", "ip", "interface", "client", "scope")
+        for lv, at in {tuple(x[k] for k in keys): x["at"] for x in logins}.items():
+            login.add_metric(list(lv), at)
+        yield from (seen, bans, bad, info, until, msgs, last, login)
 
     # ---------- yazılım sürümleri / güncellemeler ----------
     def _firmware(self):
@@ -1174,6 +1191,7 @@ class SyslogWorker(threading.Thread):
         self.lock = threading.Lock()
         self.ips = {}      # (cihaz, ip) -> durum
         self.devices = {}  # cihaz -> (satır sayısı, son satır zamanı)
+        self.logins = []   # yönetici girişleri (en yeni sonda)
         self.names, self.names_at = {}, 0  # kaynak IP -> cihaz adı
 
     def _device(self, addr):
@@ -1224,6 +1242,25 @@ class SyslogWorker(threading.Thread):
                 if path in st["paths"]:
                     st["paths"].remove(path)
                 st["paths"] = (st["paths"] + [path])[-5:]
+            elif (g := SYSLOG_LOGIN.search(msg)) and g.group(1) != LOGIN:
+                self.logins = (self.logins + [self._login(device, g, now)])[-50:]
+
+    @staticmethod
+    def _login(device, g, now):
+        user, scheme, ip, iface, agent, os_, via = g.group(1, 3, 4, 5, 6, 7, 8)
+        if via in CLOUD_VIA or scheme.startswith(("coala", "sndns")):
+            scope = "bulut"
+        else:
+            try:
+                scope = "internet" if ipaddress.ip_address(ip.strip("[]")).is_global else "yerel"
+            except ValueError:
+                scope = "internet"
+        client = ", ".join(x for x in (agent, os_) if x != "unknown")
+        via = {"browser-direct": "tarayıcı", "mobile-app": "mobil uygulama",
+               "rmm-cloud": "Keenetic bulutu"}.get(via, via)
+        log.info("%s: %s girişi, %s (%s)", device, user, ip, scope)
+        return {"device": device, "user": user, "ip": ip, "interface": iface,
+                "client": f"{client} ({via})" if client else via, "scope": scope, "at": now}
 
     def snapshot(self):
         now = time.time()
@@ -1234,8 +1271,9 @@ class SyslogWorker(threading.Thread):
             if len(self.ips) > SYSLOG_MAX_IPS:
                 for key, _ in sorted(self.ips.items(), key=lambda kv: kv[1]["last"])[:-SYSLOG_MAX_IPS]:
                     del self.ips[key]
+            self.logins = [x for x in self.logins if now - x["at"] < SYSLOG_LOGIN_RETENTION]
             return ({k: {**v, "paths": list(v["paths"])} for k, v in self.ips.items()},
-                    dict(self.devices))
+                    dict(self.devices), list(self.logins))
 
     def run(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

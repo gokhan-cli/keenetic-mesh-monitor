@@ -2668,13 +2668,207 @@
       }
     },
     {
+      "id": 60,
+      "type": "table",
+      "title": "Yönetici girişleri (router günlüğü)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router'ların uzak syslog'undaki \"started a user session\" satırları; exporter'ın kendi kullanıcısı hariç. Üstteki zaman aralığında görülen girişler; aynı kullanıcı, adres ve tarayıcı tek satırda, son giriş zamanıyla. Kaynak: İnternet = router'a internetten (ör. PPPoE0 üzerinden) giriş, Telegram'a 🔴 uyarı gider; Yerel ağ = ev ağından ya da VPN'den, 🟠 uyarı gider; Keenetic bulutu = mobil uygulama ve uzaktan yönetim: gerçek IP görünmez (bulut sunucusunun adresi görünür) ve sık oturum açtığı için uyarı üretmez. IP'ye tıklayınca AbuseIPDB'de açılır.",
+      "gridPos": {
+        "x": 0,
+        "y": 78,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "max by (device, user, ip, interface, client, scope) (max_over_time(keenetic_admin_login_seconds[$__range]) > time() - $__range_s) * 1000"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "Value": 0,
+              "scope": 1,
+              "device": 2,
+              "user": 3,
+              "ip": 4,
+              "interface": 5,
+              "client": 6
+            },
+            "renameByName": {
+              "Value": "Son giriş",
+              "scope": "Kaynak",
+              "device": "Cihaz",
+              "user": "Kullanıcı",
+              "ip": "IP",
+              "interface": "Arayüz",
+              "client": "İstemci"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Son giriş",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 70
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Son giriş"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocalNoDateIfToday"
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kaynak"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "internet": {
+                        "text": "İnternet",
+                        "color": "red"
+                      },
+                      "yerel": {
+                        "text": "Yerel ağ",
+                        "color": "orange"
+                      },
+                      "bulut": {
+                        "text": "Keenetic bulutu",
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kullanıcı"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IP"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "AbuseIPDB",
+                    "url": "https://www.abuseipdb.com/check/${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Arayüz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "id": 8,
       "type": "row",
       "title": "Mesh bağlantısı",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 78,
+        "y": 85,
         "w": 24,
         "h": 1
       },
@@ -2690,7 +2884,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 86,
         "w": 12,
         "h": 8
       },
@@ -2742,7 +2936,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 79,
+        "y": 86,
         "w": 12,
         "h": 8
       },
@@ -2819,7 +3013,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 87,
+        "y": 94,
         "w": 8,
         "h": 8
       },
@@ -2872,7 +3066,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 87,
+        "y": 94,
         "w": 8,
         "h": 8
       },
@@ -2925,7 +3119,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 87,
+        "y": 94,
         "w": 8,
         "h": 8
       },
@@ -2978,7 +3172,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 95,
+        "y": 102,
         "w": 24,
         "h": 6
       },
@@ -3026,7 +3220,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 101,
+        "y": 108,
         "w": 24,
         "h": 1
       },
@@ -3042,7 +3236,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 102,
+        "y": 109,
         "w": 9,
         "h": 8
       },
@@ -3096,7 +3290,7 @@
       },
       "gridPos": {
         "x": 9,
-        "y": 102,
+        "y": 109,
         "w": 9,
         "h": 8
       },
@@ -3149,7 +3343,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 102,
+        "y": 109,
         "w": 6,
         "h": 8
       },
@@ -3214,7 +3408,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 110,
+        "y": 117,
         "w": 24,
         "h": 7
       },
@@ -3263,7 +3457,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 117,
+        "y": 124,
         "w": 24,
         "h": 1
       },
@@ -3279,7 +3473,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 125,
         "w": 24,
         "h": 10
       },
@@ -3444,7 +3638,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 135,
         "w": 24,
         "h": 9
       },
@@ -3493,7 +3687,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 137,
+        "y": 144,
         "w": 24,
         "h": 1
       },
@@ -3509,7 +3703,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 138,
+        "y": 145,
         "w": 14,
         "h": 10
       },
@@ -3684,7 +3878,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 138,
+        "y": 145,
         "w": 10,
         "h": 10
       },
@@ -3830,7 +4024,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 148,
+        "y": 155,
         "w": 24,
         "h": 8
       },
@@ -3880,7 +4074,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 156,
+        "y": 163,
         "w": 24,
         "h": 1
       },
@@ -3897,7 +4091,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 157,
+        "y": 164,
         "w": 24,
         "h": 13
       },
@@ -4074,7 +4268,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 170,
+        "y": 177,
         "w": 12,
         "h": 8
       },
@@ -4169,7 +4363,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 170,
+        "y": 177,
         "w": 12,
         "h": 8
       },
@@ -4265,7 +4459,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 178,
+        "y": 185,
         "w": 24,
         "h": 9
       },
@@ -4337,7 +4531,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 187,
+        "y": 194,
         "w": 24,
         "h": 1
       },
@@ -4354,7 +4548,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Mesh bağlantısı, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 188,
+        "y": 195,
         "w": 12,
         "h": 7
       },
@@ -4513,7 +4707,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 188,
+        "y": 195,
         "w": 12,
         "h": 7
       },
@@ -4561,7 +4755,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 195,
+        "y": 202,
         "w": 24,
         "h": 8
       },

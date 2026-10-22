@@ -74,6 +74,7 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_mesh_roam_event` | Son 100 olay (değer = olay zamanı); dashboard'daki "Son olaylar" tablosu |
 | `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |
 | `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router syslog'undan saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`SYSLOG_RETENTION`) |
+| `keenetic_admin_login_seconds` | Router syslog'undan yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı hariç; exporter'da 1 saat tutulur |
 | `keenetic_syslog_messages_total` / `_last_message_seconds` | Cihaz başına alınan syslog satırı; sıfırsa router syslog göndermiyor |
 
 ## Router günlüğü (syslog)
@@ -110,6 +111,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 Mesh üyesi kayboldu | Son 1 saatte görülen bir üye listeden çıkarsa ya da internete erişemezse (3 dk) |
 | 🟠 Mesh bağlantısı yeniden kuruldu | `keenetic_mesh_backhaul_uptime_seconds` son 10 dk'da sıfırlandıysa |
 | 🟠 Kanal genişliği düştü | Bir radyo 15 dk boyunca ayarlanandan dar çalışırsa. Süre, yeniden başlatma sonrası ~10 dk'lık DFS dinlemesi uyarı üretmesin diye 15 dk seçildi |
+| 🔴 / 🟠 Yönetici girişi | Syslog'da "started a user session" satırı gelince, tek mesaj: internetten giriş 🔴, ev ağından ya da VPN'den giriş 🟠. Mobil uygulama ve Keenetic bulutu oturumları (gerçek IP görünmez, çok sık) uyarı üretmez |
 | 🔴 IP engellendi | Syslog'da "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
 | 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama syslog'dan IP bilgisi gelmediyse (yedek; IP içermez) |
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |

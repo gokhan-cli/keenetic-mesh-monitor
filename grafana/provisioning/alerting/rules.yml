@@ -443,3 +443,33 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-admin-login
+        title: Yönetici girişi
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, notify: once }
+        annotations:
+          summary: "{{ if eq .Labels.scope \"internet\" }}🔴 İnternetten yönetici girişi{{ else }}🟠 Yönetici girişi (yerel ağ){{ end }}: {{ .Labels.user }} → {{ .Labels.device }}"
+          description: "{{ .Labels.user }} kullanıcısı {{ .Labels.ip }}{{ if .Labels.interface }} ({{ .Labels.interface }}){{ end }} adresinden {{ .Labels.client }} ile giriş yaptı. Siz değilseniz yönetici şifresini değiştirin.{{ if eq .Labels.scope \"internet\" }} IP bilgisi: https://www.abuseipdb.com/check/{{ .Labels.ip }}{{ end }}"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Router syslog'undaki "started a user session" satırları; son 5 dakikadakiler.
+              # Mobil uygulama ve Keenetic bulutu (scope="bulut") gerçek IP'yi göstermez
+              # ve çok sık oturum açar; uyarı üretmez
+              expr: 'keenetic_admin_login_seconds{scope!="bulut"} > time() - 300'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
