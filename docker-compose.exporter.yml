@@ -1,0 +1,12 @@
+# Yalnız exporter: kendi Prometheus ve Grafana'nız varsa.
+#   docker compose -f docker-compose.exporter.yml up -d --build
+# Metrikler http://<bu-makine>:9877/metrics adresinde; Prometheus'a ekleme ve
+# dashboard / uyarıların içe aktarılması için README → "Yalnız exporter".
+services:
+  keenetic-exporter:
+    build: ./exporter
+    container_name: keenetic-exporter
+    restart: unless-stopped
+    env_file: .env
+    # Router syslog'u (514/udp) kaynak IP'ye göre kabul edilir; NAT'sız olması için host ağı
+    network_mode: host

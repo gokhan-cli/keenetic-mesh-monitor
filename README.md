@@ -45,6 +45,28 @@ docker compose up -d --force-recreate keenetic-exporter
 Grafana: `http://<lxc-ip>:3000` → kullanıcı `admin`, şifre `.env` içindeki `GF_ADMIN_PASSWORD`.
 Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 
+### Yalnız exporter (kendi Prometheus / Grafana'nız varsa)
+
+```bash
+cp .env.example .env && nano .env      # KEENETIC_* yeterli; GF_ADMIN_PASSWORD ve TELEGRAM_* kullanılmaz
+docker compose -f docker-compose.exporter.yml up -d --build
+curl -s localhost:9877/metrics | grep keenetic_up    # 1 olmalı
+```
+
+Exporter host ağında çalışır: metrikler `:9877`, router syslog'u `:514/udp`. Prometheus'a ekleyin; toplama birkaç saniye sürebildiği için `scrape_timeout` varsayılan 10 sn'den uzun olmalı:
+
+```yaml
+scrape_configs:
+  - job_name: keenetic
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+      - targets: ["<exporter-ip>:9877"]
+```
+
+- **Dashboard:** Grafana → Dashboards → New → Import → `grafana/dashboards/keenetic-mesh.json`. Paneller Prometheus veri kaynağını `uid: prometheus` ile arar; sizinkinin uid'i farklıysa ya veri kaynağını bu uid ile oluşturun ya da dosyada `"uid": "prometheus"` geçen yerleri kendi uid'inizle değiştirin.
+- **Uyarılar (isteğe bağlı):** `grafana/provisioning/alerting/rules.yml` Grafana provisioning dosyasıdır; kendi Grafana'nızın `provisioning/alerting/` klasörüne kopyalayın (aynı `uid: prometheus` koşulu geçerli). Telegram için `telegram.yml.example`'ı da ekleyin (bkz. "Telegram uyarıları").
+
 ## Metrikler
 
 | Metrik | Açıklama |
