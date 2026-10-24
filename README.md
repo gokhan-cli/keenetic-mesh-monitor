@@ -74,6 +74,8 @@ Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
 | `keenetic_mesh_roam_event` | Son 100 olay (değer = olay zamanı); dashboard'daki "Son olaylar" tablosu |
 | `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |
 | `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router syslog'undan saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`SYSLOG_RETENTION`) |
+| `keenetic_service_up` / `_enabled` / `_pid` / `_memory_bytes` | Cihaz başına KeeneticOS servisleri (`kind=servis`) ve servis olmayan arka plan süreçleri (`kind=süreç`, ör. Entware'den tailscaled): çalışıyor mu, ayarlarda açık mı, süreç numarası, bellek |
+| `keenetic_application_active` | Router'ın son 3 dakikada trafik saydığı uygulama sayısı; trafik varken 0 kalıyorsa Trafik İzleme sayacı durmuştur |
 | `keenetic_admin_login_seconds` | Router syslog'undan yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı hariç; exporter'da 1 saat tutulur |
 | `keenetic_syslog_messages_total` / `_last_message_seconds` | Cihaz başına alınan syslog satırı; sıfırsa router syslog göndermiyor |
 
@@ -122,6 +124,9 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
 | 🟠 Radyo ısınıyor | Bir Wi-Fi radyosu 15 dk boyunca 80 °C üzerindeyse (normalde 50–65 °C) |
 | 🏠 Eve geldi | Önceki 4 saatte hiç görülmeyen bir Wi-Fi cihazı ağa bağlanınca, tek mesaj ("Düzeldi" gelmez). Kablolu cihazlar dahil değil; exporter ya da router o 4 saatte çoğunlukla kapalıysa uyarı üretmez |
+| 🔴 Servis durdu | Son 1 saatte çalışan, ayarlarda açık bir servis 3 dk durursa ya da servis olmayan bir süreç (ör. tailscaled) kaybolursa. VPN, PPPoE (kendi uyarıları var) ve isteğe bağlı çalışanlar (iperf3, LLDP) hariç |
+| 🟠 Servis yeniden başladı | Bir servisin süreç numarası son 10 dk'da değiştiyse, tek mesaj. Cihazın kendisi yeniden başladıysa üretilmez |
+| 🟠 Trafik İzleme durdu | İnternetten ortalama 100 kb/s üzeri indirilirken router 30 dk boyunca hiçbir uygulama trafiği saymazsa (servis çalışıyor görünse de sayaç takılmış olabilir) |
 | 🔵 Yazılım güncellemesi var | Takip edilen kanalda yeni sürüm çıkarsa (haftada bir hatırlatılır) |
 
 Sorun düzelince "✅ Düzeldi" mesajı gelir (`notify: once` etiketli olay uyarıları hariç; bunlar `telegram.yml`'deki "Telegram (tek sefer)" yoluyla tek mesaj olarak gider. Eski bir `telegram.yml` kullanıyorsanız bu bölümü örnek dosyadan ekleyin). Bir uyarı en fazla günde bir kez tekrarlanır. Kurallar Grafana'da **Alerting → Alert rules** altında görünür; provisioning ile geldikleri için arayüzden değiştirilemez, değişiklik `rules.yml` üzerinden yapılır.

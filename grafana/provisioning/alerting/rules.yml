@@ -473,3 +473,106 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [0] }
+
+
+      - uid: keenetic-service-stopped
+        title: Servis durdu
+        condition: B
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "🔴 Servis durdu: {{ .Labels.service }} → {{ .Labels.device }}"
+          description: "{{ .Labels.device }} üzerinde {{ .Labels.service }} {{ if eq .Labels.kind \"süreç\" }}süreci{{ else }}servisi{{ end }} son 1 saatte çalışıyordu, 3 dakikadır çalışmıyor."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # KeeneticOS servisi: ayarlarda açık ama durmuş. Servis olmayan süreç (ör.
+              # Entware'den tailscaled): listeden çıkmış (cihaz okunabilirken).
+              # İsteğe bağlı çalışanlar ve kendi uyarısı olanlar (VPN, PPPoE) hariç.
+              expr: >-
+                group by (device, service, kind) (
+                  (keenetic_service_up{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"} == 0)
+                    and on(device, service) (keenetic_service_enabled == 1)
+                    and on(device, service) (max_over_time(keenetic_service_up[1h]) == 1)
+                )
+                or
+                group by (device, service, kind) (
+                  max_over_time(keenetic_service_up{kind="süreç"}[1h]) == 1
+                    unless on(device, service) keenetic_service_up
+                    and on(device) group by (device) (keenetic_service_up)
+                )
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-service-restarted
+        title: Servis yeniden başladı
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning, notify: once }
+        annotations:
+          summary: "🟠 Servis yeniden başladı: {{ .Labels.service }} → {{ .Labels.device }}"
+          description: "{{ .Labels.device }} üzerinde {{ .Labels.service }} son 10 dakikada yeniden başladı (süreç numarası değişti). Tek seferse genelde zararsızdır; sık tekrarlanıyorsa servis çöküyor olabilir."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Cihazın kendisi yeniden başladıysa (açık kalma < 15 dk) hepsi değişir; o
+              # durumu "Yeniden başladı" uyarısı bildirir
+              expr: >-
+                changes(keenetic_service_pid{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"}[10m]) > 0
+                and on(device) (keenetic_system_uptime_seconds > 900)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-traffic-monitor-stalled
+        title: Trafik İzleme durdu
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 Trafik İzleme durdu"
+          description: "İnternet trafiği varken router 30 dakikadır hiçbir uygulama trafiği saymıyor; uygulama bazında trafik panelleri boş kalır. Servis çalışıyor görünse de sayaç takılmış olabilir. Router'ı yeniden başlatmak ya da IntelliQoS'ta uygulama önceliklendirmeyi kapatıp açmak çözebilir."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Son 30 dakikada hiç trafikli uygulama yok, ama WAN'dan ortalama >100 kb/s indirildi
+              expr: >-
+                group(max_over_time(keenetic_application_active[30m]) == 0)
+                and on() (sum(rate(keenetic_wan_receive_bytes_total[30m])) * 8 > 100000)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }

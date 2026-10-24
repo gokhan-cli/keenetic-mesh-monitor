@@ -3451,13 +3451,313 @@
       }
     },
     {
+      "id": 61,
+      "type": "row",
+      "title": "Servisler",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 124,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 62,
+      "type": "table",
+      "title": "Servisler ve süreçler (seçili aralıkta çalışanlar)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router'ların süreç listesinden (show processes). Tür: Servis = KeeneticOS'un yönettiği servis; Süreç = servis olmayan arka plan programı (ör. Entware'den tailscaled, cron). Yalnız seçili aralıkta en az bir kez çalışmış olanlar listelenir; kullanılmayan arayüzlerin servisleri görünmez. Yeniden başlama = aralıkta süreç numarasının kaç kez değiştiği. Ayarlarda açık bir servis durursa ya da bir süreç kaybolursa 🔴, yeniden başlarsa 🟠 Telegram uyarısı gelir (VPN, PPPoE ve isteğe bağlı çalışanlar hariç; onların kendi uyarıları var).",
+      "gridPos": {
+        "x": 0,
+        "y": 125,
+        "w": 14,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "max by (device, service, kind) (keenetic_service_up) and on(device, service) (max_over_time(keenetic_service_up[$__range]) == 1)"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "max by (device, service, kind) (keenetic_service_memory_bytes) and on(device, service) (max_over_time(keenetic_service_up[$__range]) == 1)"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "max by (device, service, kind) (changes(keenetic_service_pid[$__range])) and on(device, service) (max_over_time(keenetic_service_up[$__range]) == 1)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "device": 0,
+              "service": 1,
+              "kind": 2,
+              "Value #A": 3,
+              "Value #B": 4,
+              "Value #C": 5
+            },
+            "renameByName": {
+              "device": "Cihaz",
+              "service": "Servis",
+              "kind": "Tür",
+              "Value #A": "Durum",
+              "Value #B": "Bellek",
+              "Value #C": "Yeniden başlama"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Bellek",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 70
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tür"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "servis": {
+                        "text": "Servis"
+                      },
+                      "süreç": {
+                        "text": "Süreç"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Durum"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 95
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Çalışıyor",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Durmuş",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bellek"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yeniden başlama"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 63,
+      "type": "timeseries",
+      "title": "Bellek kullanımı (en yüksek 8)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Süreç başına bellek (RSS). Sürekli artan bir çizgi bellek sızıntısına işaret eder. Ana router'da en çok bellek kullananlar genelde tailscaled, Trafik İzleme (Ntce::Manager) ve ndm'dir.",
+      "gridPos": {
+        "x": 14,
+        "y": 125,
+        "w": 10,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(8, keenetic_service_memory_bytes)",
+          "legendFormat": "{{service}} ({{device}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 19,
       "type": "row",
       "title": "Wi-Fi istemcileri (tüm mesh)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 124,
+        "y": 135,
         "w": 24,
         "h": 1
       },
@@ -3473,7 +3773,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 125,
+        "y": 136,
         "w": 24,
         "h": 10
       },
@@ -3638,7 +3938,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 135,
+        "y": 146,
         "w": 24,
         "h": 9
       },
@@ -3687,7 +3987,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 144,
+        "y": 155,
         "w": 24,
         "h": 1
       },
@@ -3703,7 +4003,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 145,
+        "y": 156,
         "w": 14,
         "h": 10
       },
@@ -3878,7 +4178,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 145,
+        "y": 156,
         "w": 10,
         "h": 10
       },
@@ -4024,7 +4324,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 155,
+        "y": 166,
         "w": 24,
         "h": 8
       },
@@ -4074,7 +4374,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 163,
+        "y": 174,
         "w": 24,
         "h": 1
       },
@@ -4091,7 +4391,7 @@
       "description": "Ana router ve her mesh üyesi kendi konumundan tarar (site survey). Varsayılan 5 dk'da bir yenilenir (SITE_SURVEY_INTERVAL). (gizli) satırları çoğunlukla aynı cihazın ikincil/misafir yayınlarıdır.",
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 175,
         "w": 24,
         "h": 13
       },
@@ -4268,7 +4568,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 177,
+        "y": 188,
         "w": 12,
         "h": 8
       },
@@ -4363,7 +4663,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 177,
+        "y": 188,
         "w": 12,
         "h": 8
       },
@@ -4459,7 +4759,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 185,
+        "y": 196,
         "w": 24,
         "h": 9
       },
@@ -4531,7 +4831,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 194,
+        "y": 205,
         "w": 24,
         "h": 1
       },
@@ -4548,7 +4848,7 @@
       "description": "Gerçek kanal genişliği ayarlanandan düşükse (ör. DFS/radar sonrası 160→80) Durum 'Düşük' olur. Mesh bağlantısı, controller'ın 5 GHz genişliğini kullanır.",
       "gridPos": {
         "x": 0,
-        "y": 195,
+        "y": 206,
         "w": 12,
         "h": 7
       },
@@ -4707,7 +5007,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 195,
+        "y": 206,
         "w": 12,
         "h": 7
       },
@@ -4755,7 +5055,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 202,
+        "y": 213,
         "w": 24,
         "h": 8
       },

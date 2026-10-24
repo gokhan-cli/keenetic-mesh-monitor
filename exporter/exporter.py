@@ -66,6 +66,8 @@ SYSTEM_INTERVAL = int(os.environ.get("SYSTEM_INTERVAL", "30"))
 ROAM_INTERVAL = int(os.environ.get("ROAM_INTERVAL", "60"))
 ROAM_RECENT = 100
 WIFI_BANDS = {0: "2.4 GHz", 1: "5 GHz", 2: "6 GHz"}
+# Servis / süreç durumu (show processes) okuma aralığı (sn, 0 = kapalı)
+SERVICE_INTERVAL = int(os.environ.get("SERVICE_INTERVAL", "60"))
 # Uygulama bazında trafik (show ntce summary/chart) okuma aralığı (sn, 0 = kapalı). Router
 # 3 sn'lik dilimleri son 3 dakika için tutar; aralık 180'den küçük olmalı
 APP_INTERVAL = min(int(os.environ.get("APP_INTERVAL", "60")), 150)
@@ -323,9 +325,10 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam, apps):
+    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam, apps, services):
         self.c = client
         self.apps = apps
+        self.services = services
         self.roam = roam
         self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
@@ -388,6 +391,8 @@ class MeshCollector:
             yield from self._roam()
         if APP_INTERVAL:
             yield from self._apps()
+        if SERVICE_INTERVAL:
+            yield from self._services()
         if COLLECT_CLIENTS:
             yield from self._clients(names)
         if SURVEY_INTERFACES:
@@ -785,6 +790,34 @@ class MeshCollector:
             tx.add_metric([app, group], t)
         yield rx
         yield tx
+        active = GaugeMetricFamily("keenetic_application_active",
+                                   "Router'ın son 3 dakikada trafik saydığı uygulama sayısı (0 = Trafik İzleme sayacı "
+                                   "durmuş olabilir)")
+        n, at = self.apps.active
+        if at and time.time() - at < 3 * APP_INTERVAL:
+            active.add_metric([], n)
+        yield active
+
+    def _services(self):
+        L = ["device", "service", "kind"]
+        up = GaugeMetricFamily("keenetic_service_up", "Servis / süreç çalışıyor mu (1/0)", labels=L)
+        enabled = GaugeMetricFamily("keenetic_service_enabled",
+                                    "Servis ayarlarda açık mı (1/0); kapalıyken durması uyarı üretmez", labels=L)
+        pid = GaugeMetricFamily("keenetic_service_pid", "Sürecin numarası; değişirse yeniden başlamıştır", labels=L)
+        mem = GaugeMetricFamily("keenetic_service_memory_bytes", "Sürecin kullandığı bellek (RSS)", labels=L)
+        now = time.time()
+        for device, (items, at) in self.services.snapshot().items():
+            if now - at > 3 * SERVICE_INTERVAL:
+                continue  # cihaza ulaşılamıyor; eski değeri gösterme
+            for (name, kind), x in items.items():
+                lv = [device, name, kind]
+                up.add_metric(lv, x["up"])
+                if x["enabled"] is not None:
+                    enabled.add_metric(lv, x["enabled"])
+                if x["up"] and x["pid"]:
+                    pid.add_metric(lv, x["pid"])
+                    mem.add_metric(lv, x["rss"])
+        yield from (up, enabled, pid, mem)
 
     def _syslog(self):
         L = ["device", "ip"]
@@ -1105,6 +1138,7 @@ class AppWorker(DeviceWorker):
         super().__init__("apps", APP_INTERVAL)
         self.last_t = None  # sayılan son dilimin zamanı (router açık kalma süresi, sn)
         self.counts = {}    # (uygulama, grup) -> birikmiş [rx, tx]
+        self.active = (0, 0)  # (trafikli uygulama sayısı, okuma zamanı)
 
     def snapshot(self):
         with self.lock:
@@ -1135,6 +1169,7 @@ class AppWorker(DeviceWorker):
             if "id-num" in a and num(a.get("sumbytes")):
                 group = a.get("group-long") or ""
                 apps[a["id-num"]] = (self._app_name(a), APP_GROUPS.get(group, group))
+        self.active = (len(apps), time.time())
         if not apps:
             return
         bars = c.post("show/ntce/chart", {"applications": True, "attributes": "rxbytes,txbytes", "detail": 0,
@@ -1165,6 +1200,39 @@ class AppWorker(DeviceWorker):
                             self.counts[key][0] += r
                             self.counts[key][1] += x
             self.last_t = max((t for t in times if t < newest), default=newest)
+
+
+class ServiceWorker(DeviceWorker):
+    """KeeneticOS servisleri (show processes "object"/"service") ve Entware gibi
+    servis olmayan arka plan süreçleri (init'in çocukları, ör. tailscaled)."""
+
+    def __init__(self):
+        super().__init__("services", SERVICE_INTERVAL)
+
+    def poll(self, client):
+        items = {}  # (ad, tür) -> durum; aynı adlı birden çok süreç toplanır
+        for p in as_list(client.get("show/processes"), "process"):
+            obj, svc = p.get("object"), p.get("service")
+            pid = num(p.get("pid")) or 0
+            if obj:
+                key = (obj.get("id") or "?", "servis")
+                if svc:
+                    running = svc.get("state") == "STARTED" and bool(svc.get("alive"))
+                    configured = 1 if svc.get("configured") else 0
+                else:
+                    running, configured = obj.get("state") == "RUNNING", None
+            elif p.get("comm") and p.get("ppid") == "1":
+                key, running, configured = (p["comm"], "süreç"), pid > 0, None
+            else:
+                continue
+            rss = (num(str(p.get("vm-rss", "")).split()[0] if p.get("vm-rss") else None) or 0) * 1024
+            x = items.setdefault(key, {"up": 0, "enabled": configured, "pid": 0, "rss": 0})
+            if running:
+                x["up"] = 1
+                if pid > 0:
+                    x["pid"] = min(x["pid"] or pid, pid)
+                    x["rss"] += rss
+        return items
 
 
 class SystemWorker(DeviceWorker):
@@ -1310,9 +1378,11 @@ if __name__ == "__main__":
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
     security, syslog, system, roam = SecurityWorker(), SyslogWorker(), SystemWorker(), RoamWorker()
-    apps = AppWorker()
+    apps, services = AppWorker(), ServiceWorker()
     REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system, roam,
-                                    apps))
+                                    apps, services))
+    if SERVICE_INTERVAL:
+        services.start()
     if APP_INTERVAL:
         apps.start()
     if ROAM_INTERVAL:
