@@ -53,7 +53,7 @@ docker compose -f docker-compose.exporter.yml up -d --build
 curl -s localhost:9877/metrics | grep keenetic_up    # 1 olmalı
 ```
 
-Exporter host ağında çalışır: metrikler `:9877`, router syslog'u `:514/udp`. Prometheus'a ekleyin; toplama birkaç saniye sürebildiği için `scrape_timeout` varsayılan 10 sn'den uzun olmalı:
+Exporter host ağında çalışır, metrikler `:9877`'de. Prometheus'a ekleyin; toplama birkaç saniye sürebildiği için `scrape_timeout` varsayılan 10 sn'den uzun olmalı:
 
 ```yaml
 scrape_configs:
@@ -95,22 +95,24 @@ scrape_configs:
 | `keenetic_mesh_roam_events_total` | Mesh dolaşım günlüğünden istemci başına olaylar (`event`: roam = erişim noktası/bant değiştirdi, join = bağlandı, leave = ayrıldı), nereden/nereye (cihaz ve bant) ve yöntem (`ft` = 802.11r, `pmk`). Exporter açıldıktan sonraki olaylar sayılır |
 | `keenetic_mesh_roam_event` | Son 100 olay (değer = olay zamanı); dashboard'daki "Son olaylar" tablosu |
 | `keenetic_*_uptime_text` | Süreler Türkçe metin olarak (`text` etiketi: "1 gün 17 saat", "14 saat 25 dk"); Grafana'nın süre birimleri yalnız İngilizce olduğu için dashboard bunları gösterir. Değer her zaman 1; hesap için `_uptime_seconds` kullanın |
-| `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router syslog'undan saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`SYSLOG_RETENTION`) |
+| `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router günlüğünden saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`LOG_RETENTION`) |
 | `keenetic_service_up` / `_enabled` / `_pid` / `_memory_bytes` | Cihaz başına KeeneticOS servisleri (`kind=servis`) ve servis olmayan arka plan süreçleri (`kind=süreç`, ör. Entware'den tailscaled): çalışıyor mu, ayarlarda açık mı, süreç numarası, bellek |
 | `keenetic_application_active` | Router'ın son 3 dakikada trafik saydığı uygulama sayısı; trafik varken 0 kalıyorsa Trafik İzleme sayacı durmuştur |
-| `keenetic_admin_login_seconds` | Router syslog'undan yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı hariç; exporter'da 1 saat tutulur |
-| `keenetic_syslog_messages_total` / `_last_message_seconds` | Cihaz başına alınan syslog satırı; sıfırsa router syslog göndermiyor |
+| `keenetic_admin_login_seconds` | Router günlüğünden yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç; exporter'da 1 saat tutulur |
+| `keenetic_log_lines_total` / `keenetic_log_read_seconds` | Cihaz başına router günlüğünden okunan satır ve son okuma zamanı |
 
-## Router günlüğü (syslog)
+## Router günlüğü
 
-RCI'da engellenen IP'lerin adresi yok, `monitor` kullanıcısı da günlüğü okuyamıyor. Bu yüzden router'lar günlüklerini exporter'a gönderir:
-her cihazda (controller ve node'lar) **Diagnostik → Sistem günlüğü → uzak sunucu** = bu makinenin IP'si (UDP 514).
-Exporter yalnız controller'dan ve mesh üyelerinden gelen satırları kabul eder ve sadece şunları ayıklar:
+Exporter her cihazın (controller ve node'lar) günlüğünü RCI'dan (`show log`, `monitor` kullanıcısı yeterli) 30 sn'de bir okur;
+router'da syslog ya da başka bir ayar gerekmez. Yalnız yeni satırlar işlenir ve sadece şunlar ayıklanır:
 
 - `Netfilter::Lockout::Manager: "Http": ban remote host <IP> for 15 minutes.` → engellenen IP
 - `Core::Scgi::Handler::GetIndex: malicious request: /wp-login.php [<IP>]` → kötü niyetli istek ve istenen yol
+- `Core::Security::Authority: started a user session [...]` → yönetici girişi
 
-Dashboard'da **Sistem güvenliği → Saldıran IP'ler** tablosu ve Telegram'da IP'li "IP engellendi" uyarısı bunlardan gelir. Liste bellekte tutulur, exporter yeniden başlayınca sıfırlanır. Kapatmak için `SYSLOG_PORT=0`.
+Dashboard'da **Sistem güvenliği → Saldıran IP'ler** ve **Yönetici girişleri** tabloları, Telegram'da IP'li "IP engellendi" ve "Yönetici girişi" uyarıları bunlardan gelir.
+Router son yaklaşık 4000 satırı (bir gün kadar) tutar; exporter açılırken bunları da okuduğu için yeniden başlayınca liste kaybolmaz.
+Kapatmak için `LOG_INTERVAL=0`. Önceki sürümlerde kullanılan uzak syslog ayarı artık gerekmez, router'dan kaldırılabilir.
 
 ## Telegram uyarıları
 
@@ -135,9 +137,9 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 Mesh üyesi kayboldu | Son 1 saatte görülen bir üye listeden çıkarsa ya da internete erişemezse (3 dk) |
 | 🟠 Mesh bağlantısı yeniden kuruldu | `keenetic_mesh_backhaul_uptime_seconds` son 10 dk'da sıfırlandıysa |
 | 🟠 Kanal genişliği düştü | Bir radyo 15 dk boyunca ayarlanandan dar çalışırsa. Süre, yeniden başlatma sonrası ~10 dk'lık DFS dinlemesi uyarı üretmesin diye 15 dk seçildi |
-| 🔴 / 🟠 Yönetici girişi | Syslog'da "started a user session" satırı gelince, tek mesaj: internetten giriş 🔴, ev ağından ya da VPN'den giriş 🟠. Mobil uygulama ve Keenetic bulutu oturumları (gerçek IP görünmez, çok sık) uyarı üretmez |
-| 🔴 IP engellendi | Syslog'da "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
-| 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama syslog'dan IP bilgisi gelmediyse (yedek; IP içermez) |
+| 🔴 / 🟠 Yönetici girişi | Router günlüğünde "started a user session" satırı gelince, tek mesaj: internetten giriş 🔴, ev ağından ya da VPN'den giriş 🟠. Mobil uygulama ve Keenetic bulutu oturumları (gerçek IP görünmez, çok sık) uyarı üretmez |
+| 🔴 IP engellendi | Router günlüğünde "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
+| 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama günlükten IP bilgisi okunamadıysa (yedek; IP içermez) |
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |
 | 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
 | 🟠 Ping kontrolü başarısız, hat açık | PPPoE bağlı ve ağ geçidi yanıt verirken ping kontrolü 3 dk başarısızsa. Router bu durumda IPv4 rotasını kapatıp açar (paket kaybı, VPN kopmaları); genelde kontrol hedefi erişilemiyordur (Otomatik modda captive.keenetic.net) |

@@ -330,7 +330,7 @@ groups:
         labels: { severity: critical }
         annotations:
           summary: "🔴 Hatalı giriş nedeniyle IP engellendi: {{ .Labels.device }} {{ .Labels.protocol }}"
-          description: "{{ .Labels.device }} üzerinde {{ .Labels.protocol }} için {{ .Values.A }} IP engellendi (art arda hatalı şifre). IP adresi router'da Tanılama → Sistem Günlüğü'nde \"ban remote host\" satırında görünür; router syslog'u bu sunucuya gönderiyorsa bunun yerine IP'li \"IP engellendi\" uyarısı gelir. Exporter'ın şifresi değiştiyse sebep o olabilir."
+          description: "{{ .Labels.device }} üzerinde {{ .Labels.protocol }} için {{ .Values.A }} IP engellendi (art arda hatalı şifre). IP adresi router'da Tanılama → Sistem Günlüğü'nde \"ban remote host\" satırında görünür; exporter router günlüğünü okuyabiliyorsa bunun yerine IP'li \"IP engellendi\" uyarısı gelir. Exporter'ın şifresi değiştiyse sebep o olabilir."
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
@@ -338,7 +338,7 @@ groups:
             model:
               refId: A
               instant: true
-              # Syslog'dan IP'li uyarı gelen engeller tekrar bildirilmez (aşağıdaki kural).
+              # Router günlüğünden IP'li uyarı gelen engeller tekrar bildirilmez (aşağıdaki kural).
               # Router engeli birkaç saniye geç kaldırıyor, sayaç da dakikada bir okunuyor;
               # bu yüzden engel bittikten sonra 5 dk daha susulur.
               expr: 'keenetic_lockout_current_blocked unless on(device) (keenetic_security_ban_until_seconds - time() > -300)'
@@ -368,7 +368,7 @@ groups:
             model:
               refId: A
               instant: true
-              # Router syslog'undaki "ban remote host" satırları; değer = kalan süre (sn)
+              # Router günlüğündeki "ban remote host" satırları; değer = kalan süre (sn)
               expr: >-
                 (keenetic_security_ban_until_seconds - time() > 0)
                 * on(device, ip) group_left(paths) keenetic_security_ip_info
@@ -461,7 +461,7 @@ groups:
             model:
               refId: A
               instant: true
-              # Router syslog'undaki "started a user session" satırları; son 5 dakikadakiler.
+              # Router günlüğündeki "started a user session" satırları; son 5 dakikadakiler.
               # Mobil uygulama ve Keenetic bulutu (scope="bulut") gerçek IP'yi göstermez
               # ve çok sık oturum açar; uyarı üretmez
               expr: 'keenetic_admin_login_seconds{scope!="bulut"} > time() - 300'

@@ -12,7 +12,7 @@ Kaynaklar:
   /rci/show/internet/status, show/interface -> internet, WAN (PPPoE) ve VPN tünelleri
   /rci/show/system       -> cihaz başına CPU, bellek, açık kalma süresi
   /rci/show/mws/log      -> mesh dolaşım günlüğü (istemci geçişleri, bağlanma/ayrılma)
-  syslog (UDP 514)       -> engellenen IP'ler ve kötü niyetli istekler
+  /rci/show/log          -> router günlüğü: engellenen IP'ler, kötü niyetli istekler, yönetici girişleri
 """
 import base64
 import calendar
@@ -23,11 +23,9 @@ import json
 import logging
 import os
 import re
-import socket
 import threading
 import time
 from datetime import datetime
-from urllib.parse import urlparse
 
 import requests
 from argon2.low_level import Type as Argon2Type, hash_secret_raw
@@ -86,13 +84,16 @@ APP_GROUPS = {
 }
 # VPN sayılan arayüz türleri (show/interface "type")
 VPN_TYPES = {"openvpn", "wireguard", "ipsec", "ike", "l2tp", "pptp", "sstp", "openconnect", "zerotier"}
-# Router'ların uzak syslog'u (Diagnostik → Sistem günlüğü) için UDP port (0 = kapalı)
-SYSLOG_PORT = int(os.environ.get("SYSLOG_PORT", "514"))
+# Router günlüğü (show log) okuma aralığı (sn, 0 = kapalı)
+LOG_INTERVAL = int(os.environ.get("LOG_INTERVAL", "30"))
+# Her okumada istenen satır; arada daha fazlası yazıldıysa router'ın tuttuğu
+# tamamı (en fazla 4000 satır, yaklaşık bir gün) okunur
+LOG_LINES, LOG_LINES_MAX = 300, 4000
 # Saldıran IP'nin son görülmesinden sonra listede kalma süresi (sn)
-SYSLOG_RETENTION = int(os.environ.get("SYSLOG_RETENTION", "86400"))
-SYSLOG_MAX_IPS = 200
+LOG_RETENTION = int(os.environ.get("LOG_RETENTION", "86400"))
+LOG_MAX_IPS = 200
 # Yönetici girişlerinin metrikte kalma süresi (sn)
-SYSLOG_LOGIN_RETENTION = 3600
+LOG_LOGIN_RETENTION = 3600
 # Taramada controller'ın görünen adı (extender'lar mesh'teki adlarıyla görünür)
 CONTROLLER_NAME = os.environ.get("CONTROLLER_NAME", "Ana router")
 # Başarısız girişten sonra yeniden deneme süresi (sn)
@@ -101,15 +102,13 @@ AUTH_BACKOFF = int(os.environ.get("KEENETIC_AUTH_BACKOFF", "900"))
 # Router'ın otomatik kayıtta eklediği " - Home network - 2026-10-14 19:54" eki
 AUTO_NAME_SUFFIX = re.compile(r" - [^-]+ - \d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
 
-# "<11>Oct 20 12:17:38 Keenetic-node-1 ndm: <mesaj>"
-SYSLOG_LINE = re.compile(r"^<\d+>(?:\w{3} [ \d]\d \d\d:\d\d:\d\d )?(\S+) [^:]+: (.*)$", re.S)
 # Netfilter::Lockout::Manager: "Http": ban remote host 203.0.113.7 for 15 minutes.
-SYSLOG_BAN = re.compile(r'Lockout::Manager: "(\w+)": ban remote host (\S+) for (\d+) minute')
+LOG_BAN = re.compile(r'Lockout::Manager: "(\w+)": ban remote host (\S+) for (\d+) minute')
 # Core::Scgi::Handler::GetIndex: malicious request: /wp-login.php [203.0.113.7].
-SYSLOG_MALICIOUS = re.compile(r"malicious request: (.*) \[([0-9A-Fa-f.:]+)\]\.?$")
+LOG_MALICIOUS = re.compile(r"malicious request: (.*) \[([0-9A-Fa-f.:]+)\]\.?$")
 # Core::Security::Authority: started a user session [admin#904(password) from
 # https://{http/rci}@203.0.113.7:PPPoE0/ agent Edge 155.0.0 on Windows 10 via browser-direct].
-SYSLOG_LOGIN = re.compile(r"started a user session \[([^#\s]+)#\d+\((\w+)\) from ([\w+]+)://\{[^}]*\}@(.+):([^:/]*)/ "
+LOG_LOGIN = re.compile(r"started a user session \[([^#\s]+)#\d+\((\w+)\) from ([\w+]+)://\{[^}]*\}@(.+):([^:/]*)/ "
                           r"agent (.*?) on (.*?) via ([\w-]+)\]")
 # Keenetic bulutu üzerinden gelen oturumlar: mobil uygulama ve uzaktan yönetim
 # (gerçek kaynak IP görünmez, bulut sunucusunun adresi görünür)
@@ -325,14 +324,14 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, syslog, system, roam, apps, services):
+    def __init__(self, client, survey, radio, clients, firmware, security, logs, system, roam, apps, services):
         self.c = client
         self.apps = apps
         self.services = services
         self.roam = roam
         self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
-        self.syslog = syslog
+        self.logs = logs
         self.security = security
         self.firmware = firmware
         self.survey = survey
@@ -403,8 +402,8 @@ class MeshCollector:
             yield from self._firmware()
         if SECURITY_INTERVAL:
             yield from self._security()
-        if SYSLOG_PORT:
-            yield from self._syslog()
+        if LOG_INTERVAL:
+            yield from self._router_log()
         dur.add_metric([], time.time() - t0)
         yield dur
 
@@ -819,7 +818,7 @@ class MeshCollector:
                     mem.add_metric(lv, x["rss"])
         yield from (up, enabled, pid, mem)
 
-    def _syslog(self):
+    def _router_log(self):
         L = ["device", "ip"]
         seen = GaugeMetricFamily("keenetic_security_ip_last_seen_seconds",
                                  "Saldıran IP'nin günlükte son görüldüğü zaman (unix)", labels=L)
@@ -830,13 +829,13 @@ class MeshCollector:
                                  "Son engellendiği protokol ve son istediği yollar", labels=L + ["protocol", "paths"])
         until = GaugeMetricFamily("keenetic_security_ban_until_seconds", "Engelin bittiği/biteceği zaman (unix)",
                                   labels=["device", "protocol", "ip"])
-        msgs = CounterMetricFamily("keenetic_syslog_messages", "Alınan syslog satırı", labels=["device"])
-        last = GaugeMetricFamily("keenetic_syslog_last_message_seconds", "Son syslog satırının zamanı (unix)",
+        msgs = CounterMetricFamily("keenetic_log_lines", "Router günlüğünden okunan satır", labels=["device"])
+        last = GaugeMetricFamily("keenetic_log_read_seconds", "Router günlüğünün son okunduğu zaman (unix)",
                                  labels=["device"])
         login = GaugeMetricFamily("keenetic_admin_login_seconds",
                                   "Router'a yönetici girişi zamanı (unix; exporter'ın kendi kullanıcısı hariç)",
                                   labels=["device", "user", "ip", "interface", "client", "scope"])
-        ips, devices, logins = self.syslog.snapshot()
+        ips, devices, logins = self.logs.snapshot()
         for (device, ip), st in ips.items():
             lv = [device, ip]
             seen.add_metric(lv, st["last"])
@@ -1251,69 +1250,91 @@ class SystemWorker(DeviceWorker):
         return {"system": client.get("show/system"), "cpustat": cpustat}
 
 
-class SyslogWorker(threading.Thread):
-    """Router'ların uzak syslog'unu dinler; giriş korumasının engellediği IP'leri
-    ve kötü niyetli istekleri (IP ve istenen yolla) tutar. RCI'da bu bilgi yok,
-    monitor kullanıcısı günlüğü de okuyamıyor."""
+class LogWorker(DeviceWorker):
+    """Router günlüğünü (show log; yalnız POST ile) cihaz başına okur. Giriş
+    korumasının engellediği IP'ler, kötü niyetli istekler (IP ve istenen yolla) ve
+    yönetici girişleri tutulur. Satır numarası (id) ile yalnız yeni satırlar işlenir;
+    ilk okumada router'ın tuttuğu geçmiş de işlendiği için exporter yeniden
+    başlayınca liste kaybolmaz."""
 
     def __init__(self):
-        super().__init__(daemon=True, name="syslog")
-        self.lock = threading.Lock()
+        super().__init__("log", LOG_INTERVAL)
         self.ips = {}      # (cihaz, ip) -> durum
-        self.devices = {}  # cihaz -> (satır sayısı, son satır zamanı)
+        self.devices = {}  # cihaz -> (satır sayısı, son okuma zamanı)
         self.logins = []   # yönetici girişleri (en yeni sonda)
-        self.names, self.names_at = {}, 0  # kaynak IP -> cihaz adı
+        self.last_id = {}  # cihaz -> işlenen son satır numarası
 
-    def _device(self, addr):
-        """Yalnız controller ve mesh üyelerinden gelen satırlar kabul edilir;
-        ağdaki başka biri sahte engel satırı gönderip uyarı ürettiremez."""
-        age = time.time() - self.names_at
-        if age > 300 or (addr not in self.names and age > 60):
-            self.names_at = time.time()
-            names = {urlparse(HOST).hostname: CONTROLLER_NAME}
-            try:
-                for mem in as_list(client(HOST).get("show/mws/member"), "member"):
-                    if mem.get("ip"):
-                        names[mem["ip"]] = member_name(mem)
-                self.names = names
-            except Exception as e:  # eski eşleme korunur
-                log.warning("syslog: mesh üyeleri okunamadı: %s", e)
-                self.names = {**self.names, **names}
-        return self.names.get(addr)
+    @staticmethod
+    def _lines(client, n):
+        return sorted(client.post("show/log", {"max-lines": n}).get("log", {}).values(), key=lambda x: x["id"])
 
-    def _ip(self, device, ip, now):
+    @staticmethod
+    def _clock(client):
+        """Router'ın yerel saati ile UTC farkı (sn) ve bugünkü yıl/ay.
+        Günlük zamanı "Oct 24 22:48:58" gibi, yıl ve saat dilimi olmadan gelir."""
+        c = client.get("show/clock/date")
+        local = calendar.timegm((c["year"], c["month"], c["day"], c["hour"], c["min"], c["sec"], 0, 0, 0))
+        return round((local - time.time()) / 900) * 900, c["year"], c["month"]
+
+    @staticmethod
+    def _time(stamp, clock, now):
+        offset, year, month = clock
+        try:
+            t = datetime.strptime(f"{year} {stamp}", "%Y %b %d %H:%M:%S")
+        except ValueError:
+            return now
+        if t.month > month:  # yılbaşından önceki satır
+            t = t.replace(year=year - 1)
+        return min(calendar.timegm(t.timetuple()) - offset, now)
+
+    def read(self, device, client):
+        last = self.last_id.get(device)
+        items = self._lines(client, LOG_LINES_MAX if last is None else LOG_LINES)
+        if last is not None and items and (items[-1]["id"] < last or items[0]["id"] > last + 1):
+            items = self._lines(client, LOG_LINES_MAX)  # router yeniden başladı ya da çok satır yazıldı
+            if items and items[-1]["id"] < last:
+                last = None  # satır numaraları sıfırlandı
+            elif items and items[0]["id"] > last + 1:
+                log.warning("%s: günlükte %d satır okunamadan silindi", device, items[0]["id"] - last - 1)
+        new = [x for x in items if last is None or x["id"] > last]
+        now = time.time()
+        clock = self._clock(client) if new else None
+        with self.lock:
+            for x in new:
+                try:
+                    self.handle(device, x["message"]["message"], self._time(x["timestamp"], clock, now))
+                except Exception as e:
+                    log.warning("günlük satırı işlenemedi: %s", e)
+            n, _ = self.devices.get(device, (0, 0))
+            self.devices[device] = (n + len(new), now)
+            if items:
+                self.last_id[device] = items[-1]["id"]
+
+    def _ip(self, device, ip, at):
         st = self.ips.setdefault((device, ip), {"bans": 0, "malicious": 0, "protocol": "",
-                                                "ban_until": 0, "paths": []})
-        st["last"] = now
+                                                "ban_until": 0, "paths": [], "last": 0})
+        st["last"] = max(st["last"], at)
         return st
 
-    def handle(self, data, addr):
-        device = self._device(addr)
-        if device is None:
-            log.debug("syslog: bilinmeyen kaynak %s", addr)
-            return
-        text = data.decode("utf-8", "replace").strip()
-        m = SYSLOG_LINE.match(text)
-        msg = m.group(2) if m else text
-        now = time.time()
-        with self.lock:
-            n, _ = self.devices.get(device, (0, 0))
-            self.devices[device] = (n + 1, now)
-            if b := SYSLOG_BAN.search(msg):
-                proto, ip, minutes = b.group(1).lower(), b.group(2), int(b.group(3))
-                st = self._ip(device, ip, now)
-                st["bans"] += 1
-                st["protocol"], st["ban_until"] = proto, now + minutes * 60
+    def handle(self, device, msg, at):
+        if b := LOG_BAN.search(msg):
+            proto, ip, minutes = b.group(1).lower(), b.group(2), int(b.group(3))
+            st = self._ip(device, ip, at)
+            st["bans"] += 1
+            st["protocol"], st["ban_until"] = proto, max(st["ban_until"], at + minutes * 60)
+            if time.time() - at < 300:
                 log.info("%s: %s %s için %d dk engellendi", device, ip, proto, minutes)
-            elif r := SYSLOG_MALICIOUS.search(msg):
-                path, ip = r.group(1)[:80], r.group(2)
-                st = self._ip(device, ip, now)
-                st["malicious"] += 1
-                if path in st["paths"]:
-                    st["paths"].remove(path)
-                st["paths"] = (st["paths"] + [path])[-5:]
-            elif (g := SYSLOG_LOGIN.search(msg)) and g.group(1) != LOGIN:
-                self.logins = (self.logins + [self._login(device, g, now)])[-50:]
+        elif r := LOG_MALICIOUS.search(msg):
+            path, ip = r.group(1)[:80], r.group(2)
+            st = self._ip(device, ip, at)
+            st["malicious"] += 1
+            if path in st["paths"]:
+                st["paths"].remove(path)
+            st["paths"] = (st["paths"] + [path])[-5:]
+        # "local" = router'ın kendi iç oturumları (ndmc-exec vb.)
+        elif ((g := LOG_LOGIN.search(msg)) and g.group(1) != LOGIN and g.group(8) != "local"
+              and time.time() - at < LOG_LOGIN_RETENTION):
+            self.logins = (self.logins + [self._login(device, g, at)])[-200:]
 
     @staticmethod
     def _login(device, g, now):
@@ -1328,7 +1349,8 @@ class SyslogWorker(threading.Thread):
         client = ", ".join(x for x in (agent, os_) if x != "unknown")
         via = {"browser-direct": "tarayıcı", "mobile-app": "mobil uygulama",
                "rmm-cloud": "Keenetic bulutu"}.get(via, via)
-        log.info("%s: %s girişi, %s (%s)", device, user, ip, scope)
+        if time.time() - now < 300:
+            log.info("%s: %s girişi, %s (%s)", device, user, ip, scope)
         return {"device": device, "user": user, "ip": ip, "interface": iface,
                 "client": f"{client} ({via})" if client else via, "scope": scope, "at": now}
 
@@ -1336,25 +1358,23 @@ class SyslogWorker(threading.Thread):
         now = time.time()
         with self.lock:
             for key, st in list(self.ips.items()):
-                if now - st["last"] > SYSLOG_RETENTION and st["ban_until"] < now:
+                if now - st["last"] > LOG_RETENTION and st["ban_until"] < now:
                     del self.ips[key]
-            if len(self.ips) > SYSLOG_MAX_IPS:
-                for key, _ in sorted(self.ips.items(), key=lambda kv: kv[1]["last"])[:-SYSLOG_MAX_IPS]:
+            if len(self.ips) > LOG_MAX_IPS:
+                for key, _ in sorted(self.ips.items(), key=lambda kv: kv[1]["last"])[:-LOG_MAX_IPS]:
                     del self.ips[key]
-            self.logins = [x for x in self.logins if now - x["at"] < SYSLOG_LOGIN_RETENTION]
+            self.logins = [x for x in self.logins if now - x["at"] < LOG_LOGIN_RETENTION]
             return ({k: {**v, "paths": list(v["paths"])} for k, v in self.ips.items()},
                     dict(self.devices), list(self.logins))
 
     def run(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("0.0.0.0", SYSLOG_PORT))
-        log.info("Syslog :%d/udp dinleniyor", SYSLOG_PORT)
         while True:
-            data, (addr, _) = sock.recvfrom(8192)
-            try:
-                self.handle(data, addr)
-            except Exception as e:
-                log.warning("syslog satırı işlenemedi: %s", e)
+            for name, host in self._devices():
+                try:
+                    self.read(name, client(host))
+                except Exception as e:  # sonraki turda kalınan yerden devam edilir
+                    log.warning("log %s (%s) okunamadı: %s", name, host, e)
+            time.sleep(self.interval)
 
 
 class RadioWorker(DeviceWorker):
@@ -1379,9 +1399,9 @@ if __name__ == "__main__":
     if not PASSWORD:
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
-    security, syslog, system, roam = SecurityWorker(), SyslogWorker(), SystemWorker(), RoamWorker()
+    security, logs, system, roam = SecurityWorker(), LogWorker(), SystemWorker(), RoamWorker()
     apps, services = AppWorker(), ServiceWorker()
-    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, syslog, system, roam,
+    REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, logs, system, roam,
                                     apps, services))
     if SERVICE_INTERVAL:
         services.start()
@@ -1391,8 +1411,8 @@ if __name__ == "__main__":
         roam.start()
     if SYSTEM_INTERVAL:
         system.start()
-    if SYSLOG_PORT:
-        syslog.start()
+    if LOG_INTERVAL:
+        logs.start()
     if SECURITY_INTERVAL:
         security.start()
     if FIRMWARE_INTERVAL:

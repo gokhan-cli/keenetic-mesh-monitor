@@ -2274,7 +2274,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Router'ların uzak syslog'undan: giriş korumasının engellediği IP'ler (\"ban remote host\") ve router'ın kötü niyetli saydığı istekler (\"malicious request\"). Üstteki zaman aralığına göre süzülür: yalnız o aralıkta görülen IP'ler listelenir, Engelleme ve Kötü istek o aralıktaki sayılardır. Son istekler exporter'ın belleğindeki son 5 yoldur (exporter yeniden başlayınca boşalır). IP'ye tıklayınca AbuseIPDB'de açılır. Liste hiç dolmuyorsa: router'da Diagnostik → Sistem günlüğü → uzak sunucu bu makine mi?",
+      "description": "Router günlüklerinden (her cihazda Tanılama → Sistem Günlüğü): giriş korumasının engellediği IP'ler (\"ban remote host\") ve router'ın kötü niyetli saydığı istekler (\"malicious request\"). Üstteki zaman aralığına göre süzülür: yalnız o aralıkta görülen IP'ler listelenir, Engelleme ve Kötü istek o aralıktaki sayılardır. Son istekler IP başına son 5 yoldur. IP'ye tıklayınca AbuseIPDB'de açılır.",
       "gridPos": {
         "x": 12,
         "y": 63,
@@ -2675,7 +2675,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Router'ların uzak syslog'undaki \"started a user session\" satırları; exporter'ın kendi kullanıcısı hariç. Üstteki zaman aralığında görülen girişler; aynı kullanıcı, adres ve tarayıcı tek satırda, son giriş zamanıyla. Kaynak: İnternet = router'a internetten (ör. PPPoE0 üzerinden) giriş, Telegram'a 🔴 uyarı gider; Yerel ağ = ev ağından ya da VPN'den, 🟠 uyarı gider; Keenetic bulutu = mobil uygulama ve uzaktan yönetim: gerçek IP görünmez (bulut sunucusunun adresi görünür) ve sık oturum açtığı için uyarı üretmez. IP'ye tıklayınca AbuseIPDB'de açılır.",
+      "description": "Router günlüklerindeki \"started a user session\" satırları; exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç. Üstteki zaman aralığında görülen girişler; aynı kullanıcı, adres ve tarayıcı tek satırda, son giriş zamanıyla. Kaynak: İnternet = router'a internetten (ör. PPPoE0 üzerinden) giriş, Telegram'a 🔴 uyarı gider; Yerel ağ = ev ağından ya da VPN'den, 🟠 uyarı gider; Keenetic bulutu = mobil uygulama ve uzaktan yönetim: gerçek IP görünmez (bulut sunucusunun adresi görünür) ve sık oturum açtığı için uyarı üretmez. IP'ye tıklayınca AbuseIPDB'de açılır.",
       "gridPos": {
         "x": 0,
         "y": 78,

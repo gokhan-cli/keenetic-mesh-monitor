@@ -8,5 +8,4 @@ services:
     container_name: keenetic-exporter
     restart: unless-stopped
     env_file: .env
-    # Router syslog'u (514/udp) kaynak IP'ye göre kabul edilir; NAT'sız olması için host ağı
     network_mode: host
