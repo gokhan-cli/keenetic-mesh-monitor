@@ -1218,7 +1218,9 @@ class ServiceWorker(DeviceWorker):
                 key = (obj.get("id") or "?", "servis")
                 if svc:
                     running = svc.get("state") == "STARTED" and bool(svc.get("alive"))
-                    configured = 1 if svc.get("configured") else 0
+                    # "started" = kullanıcı/ayar servisi açık istiyor (arayüzden kapatınca false
+                    # olur); "configured" ayarın var olduğunu söyler, kapatınca da true kalır
+                    configured = 1 if svc.get("configured") and svc.get("started") else 0
                 else:
                     running, configured = obj.get("state") == "RUNNING", None
             elif p.get("comm") and p.get("ppid") == "1":

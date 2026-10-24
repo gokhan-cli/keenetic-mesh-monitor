@@ -3471,7 +3471,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Router'ların süreç listesinden (show processes). Tür: Servis = KeeneticOS'un yönettiği servis; Süreç = servis olmayan arka plan programı (ör. Entware'den tailscaled, cron). Yalnız seçili aralıkta en az bir kez çalışmış olanlar listelenir; kullanılmayan arayüzlerin servisleri görünmez. Yeniden başlama = aralıkta süreç numarasının kaç kez değiştiği. Ayarlarda açık bir servis durursa ya da bir süreç kaybolursa 🔴, yeniden başlarsa 🟠 Telegram uyarısı gelir (VPN, PPPoE ve isteğe bağlı çalışanlar hariç; onların kendi uyarıları var).",
+      "description": "Router'ların süreç listesinden (show processes). Tür: Servis = KeeneticOS'un yönettiği servis; Süreç = servis olmayan arka plan programı (ör. Entware'den tailscaled, cron). Yalnız seçili aralıkta en az bir kez çalışmış olanlar listelenir; kullanılmayan arayüzlerin servisleri görünmez. Durum: Durmuş = ayarlarda açık ama çalışmıyor (uyarı gider); Kapalı = ayarlardan kapatılmış, uyarı üretmez; Beklemede = yalnız gerektiğinde çalışan servis (ör. ARP ping check), şu an çalışmıyor, sorun değil. Yeniden başlama = aralıkta süreç numarasının kaç kez değiştiği. Ayarlarda açık bir servis durursa ya da bir süreç kaybolursa 🔴, yeniden başlarsa 🟠 Telegram uyarısı gelir (VPN, PPPoE ve isteğe bağlı çalışanlar hariç; onların kendi uyarıları var).",
       "gridPos": {
         "x": 0,
         "y": 125,
@@ -3487,7 +3487,7 @@
           },
           "format": "table",
           "instant": true,
-          "expr": "max by (device, service, kind) (keenetic_service_up) and on(device, service) (max_over_time(keenetic_service_up[$__range]) == 1)"
+          "expr": "(max by (device, service, kind) (keenetic_service_up == 1) or max by (device, service, kind) ((keenetic_service_up == 0) and on(device, service) (keenetic_service_enabled == 1)) or max by (device, service, kind) ((keenetic_service_up == 0) and on(device, service) (keenetic_service_enabled == 0)) + 3 or max by (device, service, kind) (keenetic_service_up == 0) + 2) and on(device, service) (max_over_time(keenetic_service_up[$__range]) == 1)"
         },
         {
           "refId": "B",
@@ -3606,7 +3606,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 95
+                "value": 105
               },
               {
                 "id": "custom.cellOptions",
@@ -3627,6 +3627,14 @@
                       "0": {
                         "text": "Durmuş",
                         "color": "red"
+                      },
+                      "2": {
+                        "text": "Beklemede",
+                        "color": "text"
+                      },
+                      "3": {
+                        "text": "Kapalı",
+                        "color": "text"
                       }
                     }
                   }

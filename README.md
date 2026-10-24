@@ -124,8 +124,8 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
 | 🟠 Radyo ısınıyor | Bir Wi-Fi radyosu 15 dk boyunca 80 °C üzerindeyse (normalde 50–65 °C) |
 | 🏠 Eve geldi | Önceki 4 saatte hiç görülmeyen bir Wi-Fi cihazı ağa bağlanınca, tek mesaj ("Düzeldi" gelmez). Kablolu cihazlar dahil değil; exporter ya da router o 4 saatte çoğunlukla kapalıysa uyarı üretmez |
-| 🔴 Servis durdu | Son 1 saatte çalışan, ayarlarda açık bir servis 3 dk durursa ya da servis olmayan bir süreç (ör. tailscaled) kaybolursa. VPN, PPPoE (kendi uyarıları var) ve isteğe bağlı çalışanlar (iperf3, LLDP) hariç |
-| 🟠 Servis yeniden başladı | Bir servisin süreç numarası son 10 dk'da değiştiyse, tek mesaj. Cihazın kendisi yeniden başladıysa üretilmez |
+| 🔴 Servis durdu | Son 1 saatte çalışan, ayarlarda açık bir servis (arayüzden kapattıklarınız hariç) 3 dk durursa ya da servis olmayan bir süreç (ör. tailscaled) kaybolursa. VPN, PPPoE (kendi uyarıları var) ve isteğe bağlı çalışanlar (iperf3, LLDP) hariç |
+| 🟠 Servis yeniden başladı | Bir servisin süreç numarası son 10 dk'da değiştiyse, tek mesaj. Mesh'teki herhangi bir cihaz son 15 dk'da yeniden başladıysa üretilmez (controller açılınca mesh üyeleri de servislerini yeniden başlatır) |
 | 🟠 Trafik İzleme durdu | İnternetten ortalama 100 kb/s üzeri indirilirken router 30 dk boyunca hiçbir uygulama trafiği saymazsa (servis çalışıyor görünse de sayaç takılmış olabilir) |
 | 🔵 Yazılım güncellemesi var | Takip edilen kanalda yeni sürüm çıkarsa (haftada bir hatırlatılır) |
 

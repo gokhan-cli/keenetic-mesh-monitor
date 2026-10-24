@@ -494,7 +494,8 @@ groups:
               instant: true
               # KeeneticOS servisi: ayarlarda açık ama durmuş. Servis olmayan süreç (ör.
               # Entware'den tailscaled): listeden çıkmış (cihaz okunabilirken).
-              # İsteğe bağlı çalışanlar ve kendi uyarısı olanlar (VPN, PPPoE) hariç.
+              # İsteğe bağlı çalışanlar ve kendi uyarısı olanlar (VPN, PPPoE) hariç;
+              # ayarlarda açık/kapalı bilgisi olmayan servisler (ör. ARP ping check) uyarı üretmez.
               expr: >-
                 group by (device, service, kind) (
                   (keenetic_service_up{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"} == 0)
@@ -533,11 +534,12 @@ groups:
             model:
               refId: A
               instant: true
-              # Cihazın kendisi yeniden başladıysa (açık kalma < 15 dk) hepsi değişir; o
-              # durumu "Yeniden başladı" uyarısı bildirir
+              # Mesh'teki bir cihaz son 15 dk'da yeniden başladıysa hiçbiri sayılmaz: kendi
+              # servisleri baştan açılır, controller açılınca mesh üyeleri de Wi-Fi ve
+              # bulut servislerini yeniden başlatır. O durumu "Yeniden başladı" uyarısı bildirir
               expr: >-
-                changes(keenetic_service_pid{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"}[10m]) > 0
-                and on(device) (keenetic_system_uptime_seconds > 900)
+                changes(keenetic_service_pid{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|Link-layer discovery observer|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"}[10m]) > 0
+                and on() (min(keenetic_system_uptime_seconds) > 900)
           - refId: B
             datasourceUid: __expr__
             model:
