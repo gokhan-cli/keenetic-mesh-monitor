@@ -43,7 +43,14 @@ docker compose up -d --force-recreate keenetic-exporter
 ```
 
 Grafana: `http://<lxc-ip>:3000` → kullanıcı `admin`, şifre `.env` içindeki `GF_ADMIN_PASSWORD`.
-Dashboard **Keenetic → Keenetic Mesh** altında otomatik gelir.
+Dashboard'lar **Keenetic** klasöründe otomatik gelir; üstteki düğmelerle seçili zaman aralığı korunarak geçilir:
+
+| Dashboard | İçerik |
+|---|---|
+| Genel bakış | Mesh durumu, özet (saldıran IP, yönetici girişi, güncelleme, durmuş servis; tıklayınca ilgili dashboard açılır), internet ve VPN, cihaz ve uygulama bazında trafik |
+| Wi-Fi ve mesh | Mesh bağlantısı, Wi-Fi istemcileri, mesh dolaşımı, radyolar, çevredeki Wi-Fi ağları |
+| Güvenlik | Giriş koruması, saldıran IP'ler, DoS koruması, yönetici girişleri |
+| Sistem ve yazılım | Yazılım ve güncellemeler, CPU / bellek / açık kalma süresi, Ethernet portları, servisler |
 
 ### Yalnız exporter (kendi Prometheus / Grafana'nız varsa)
 
@@ -64,7 +71,7 @@ scrape_configs:
       - targets: ["<exporter-ip>:9877"]
 ```
 
-- **Dashboard:** Grafana → Dashboards → New → Import → `grafana/dashboards/keenetic-mesh.json`. Paneller Prometheus veri kaynağını `uid: prometheus` ile arar; sizinkinin uid'i farklıysa ya veri kaynağını bu uid ile oluşturun ya da dosyada `"uid": "prometheus"` geçen yerleri kendi uid'inizle değiştirin.
+- **Dashboard'lar:** Grafana → Dashboards → New → Import ile `grafana/dashboards/` altındaki 4 JSON dosyasını (`keenetic-mesh`, `-wifi`, `-security`, `-system`) tek tek içe aktarın; aralarındaki düğmeler `keenetic` etiketiyle bulunur. Paneller Prometheus veri kaynağını `uid: prometheus` ile arar; sizinkinin uid'i farklıysa ya veri kaynağını bu uid ile oluşturun ya da dosyalarda `"uid": "prometheus"` geçen yerleri kendi uid'inizle değiştirin.
 - **Uyarılar (isteğe bağlı):** `grafana/provisioning/alerting/rules.yml` Grafana provisioning dosyasıdır; kendi Grafana'nızın `provisioning/alerting/` klasörüne kopyalayın (aynı `uid: prometheus` koşulu geçerli). Telegram için `telegram.yml.example`'ı da ekleyin (bkz. "Telegram uyarıları").
 
 ## Metrikler
@@ -110,7 +117,7 @@ router'da syslog ya da başka bir ayar gerekmez. Yalnız yeni satırlar işlenir
 - `Core::Scgi::Handler::GetIndex: malicious request: /wp-login.php [<IP>]` → kötü niyetli istek ve istenen yol
 - `Core::Security::Authority: started a user session [...]` → yönetici girişi
 
-Dashboard'da **Sistem güvenliği → Saldıran IP'ler** ve **Yönetici girişleri** tabloları, Telegram'da IP'li "IP engellendi" ve "Yönetici girişi" uyarıları bunlardan gelir.
+**Güvenlik** dashboard'undaki **Saldıran IP'ler** ve **Yönetici girişleri** tabloları, Telegram'da IP'li "IP engellendi" ve "Yönetici girişi" uyarıları bunlardan gelir.
 Router son yaklaşık 4000 satırı (bir gün kadar) tutar; exporter açılırken bunları da okuduğu için yeniden başlayınca liste kaybolmaz.
 Kapatmak için `LOG_INTERVAL=0`. Önceki sürümlerde kullanılan uzak syslog ayarı artık gerekmez, router'dan kaldırılabilir.
 
