@@ -800,7 +800,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Controller ve mesh üyelerinin Ethernet portları. \"(İSS)\" internet portu. 100 Mbps görünen bir port kablo ya da karşı cihaz sınırı olabilir (ör. Hue köprüsü gibi cihazlar en fazla 100 Mbps destekler).",
+      "description": "Controller ve mesh üyelerinin Ethernet portları. \"(İSS)\" internet portu. 100 Mbps görünen bir port kablo ya da karşı cihaz sınırı olabilir (bazı akıllı ev cihazları en fazla 100 Mbps destekler).",
       "gridPos": {
         "x": 14,
         "y": 17,
