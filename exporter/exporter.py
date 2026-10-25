@@ -82,7 +82,7 @@ APP_GROUPS = {
     "News": "Haber", "Peer to Peer": "P2P", "Search Engines": "Arama motorları",
     "Social": "Sosyal", "App-Stores and OS Updates": "Uygulama mağazaları ve güncellemeler",
     "Business": "İş uygulamaları", "Enterprise Services": "Kurumsal servisler", "Voice over IP": "İnternet telefonu",
-    "Streaming": "Video ve yayın", "Audio Entertainment": "Müzik ve ses", "Browsers": "Tarayıcılar",
+    "Streaming": "Video ve yayın", "Audio Entertainment": "Müzik ve ses", "Browsers": "Tarayıcılar", "Filetransfer": "Dosya aktarımı",
 }
 # Cihaz başına kategori kullanım süresi (show ntce hosts) okuma aralığı (sn, 0 = kapalı)
 USAGE_INTERVAL = int(os.environ.get("USAGE_INTERVAL", "60"))
@@ -860,13 +860,18 @@ class MeshCollector:
         app = CounterMetricFamily("keenetic_client_app_usage_seconds",
                                   "Cihazın uygulamada trafik yaptığı süre (USAGE_MIN_BYTES/dk üstü dakikalar)",
                                   labels=["mac", "name", "app", "group"])
-        groups, apps = self.usage.snapshot()
+        today = GaugeMetricFamily("keenetic_client_usage_today_seconds",
+                                  "Cihazın kategoride bugünkü kullanım süresi (router saatiyle gece yarısı sıfırlanır)",
+                                  labels=L)
+        groups, apps, days = self.usage.snapshot()
+        for lv, s in days.items():
+            today.add_metric(list(lv), s)
         for (mac, name, group), (s, b) in groups.items():
             secs.add_metric([mac, name, group], s)
             byts.add_metric([mac, name, group], b)
         for lv, s in apps.items():
             app.add_metric(list(lv), s)
-        yield from (secs, byts, app)
+        yield from (secs, byts, app, today)
 
     def _services(self):
         L = ["device", "service", "kind"]
@@ -1286,10 +1291,12 @@ class UsageWorker(DeviceWorker):
         self.prev_at = None
         self.counts = {}  # (mac, ad, grup) -> [sn, bayt]
         self.apps = {}    # (mac, ad, uygulama, grup) -> sn; yalnız trafik görülenler
+        self.today = {}   # (mac, ad, grup) -> bugünkü sn (router saatiyle gece yarısı sıfırlanır)
+        self.day = None
 
     def snapshot(self):
         with self.lock:
-            return {k: tuple(v) for k, v in self.counts.items()}, dict(self.apps)
+            return {k: tuple(v) for k, v in self.counts.items()}, dict(self.apps), dict(self.today)
 
     def run(self):
         while True:
@@ -1302,7 +1309,9 @@ class UsageWorker(DeviceWorker):
     def _poll(self):
         now = time.time()
         cur, groups, apps = {}, {}, {}  # (mac, ad, grup) / (mac, ad, uygulama, grup) -> bu aralıktaki bayt
-        for h in client(HOST).post("show/ntce/hosts", {}).get("host") or []:
+        cl = client(HOST)
+        day = time.strftime("%Y-%m-%d", time.gmtime(now + LogWorker._clock(cl)[0]))
+        for h in cl.post("show/ntce/hosts", {}).get("host") or []:
             mac, info = h.get("mac"), h.get("host") or {}
             if not mac:
                 continue
@@ -1322,6 +1331,11 @@ class UsageWorker(DeviceWorker):
         with self.lock:
             if self.prev_at is not None:
                 elapsed = min(now - self.prev_at, 2 * self.interval)
+                if day != self.day:
+                    self.today, self.day = {}, day
+                for g, b in groups.items():
+                    if b >= USAGE_MIN_BYTES * elapsed / 60:
+                        self.today[g] = self.today.get(g, 0) + elapsed
                 # Yeni seri ilk okumada 0 olarak verilir, sayım sonraki okumadan başlar:
                 # Prometheus increase() bir serinin ilk değerini saymaz
                 for g, b in groups.items():

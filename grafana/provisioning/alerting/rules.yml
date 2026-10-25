@@ -612,3 +612,33 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-usage-limit
+        title: Günlük kullanım 1 saati aştı
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        # Günde bir mesaj: gece yarısı sayaç sıfırlanınca sessizce kapanır
+        labels: { severity: info, notify: once }
+        annotations:
+          summary: "⏱️ {{ .Labels.name }}: bugün 1 saatten fazla {{ .Labels.group }}"
+          description: "{{ .Labels.name }} bugün {{ .Labels.group }} kategorisinde 1 saati aştı. Hangi uygulamalar olduğu Kullanım süresi dashboard'unda (Cihaz başına uygulamalar)."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Kategori başına ayrı sayılır; router'da adı olmayan (yalnız MAC'le görünen) cihazlar hariç
+              expr: >-
+                keenetic_client_usage_today_seconds{group=~"Sosyal|Video ve yayın|Oyun", name!~"([0-9a-f]{2}:){5}[0-9a-f]{2}"} > 3600
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }

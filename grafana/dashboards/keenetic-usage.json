@@ -171,7 +171,7 @@
       "gridPos": {
         "x": 0,
         "y": 20,
-        "w": 24,
+        "w": 16,
         "h": 9
       },
       "interval": "1d",
@@ -441,6 +441,64 @@
       "options": {
         "showHeader": true,
         "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Bugün (router saatiyle)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Bugün gece yarısından bu yana, seçili kategorilerde cihaz başına dakika. Telegram'daki 1 saat uyarısı bu sayaca bakar (Sosyal, Video ve yayın, Oyun; kategori başına ayrı). Exporter yeniden başlarsa o günün sayımı sıfırdan başlar.",
+      "gridPos": {
+        "x": 16,
+        "y": 20,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "legendFormat": "{{name}}",
+          "expr": "sort_desc(sum by (name) (keenetic_client_usage_today_seconds{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}) / 60 > 0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0,
+          "displayName": "${__field.labels.name}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 28
       }
     }
   ],

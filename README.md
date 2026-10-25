@@ -109,6 +109,7 @@ scrape_configs:
 | `keenetic_application_active` | Router'ın son 3 dakikada trafik saydığı uygulama sayısı; trafik varken 0 kalıyorsa Trafik İzleme sayacı durmuştur |
 | `keenetic_client_usage_seconds_total` / `_bytes_total` | Cihaz (`mac`, `name`) ve kategori (`group`) başına kullanım süresi ve trafik. Router'ın açık bağlantı listesinden (`show ntce hosts`) dakikada bir: o dakika kategoride `USAGE_MIN_BYTES` (50 KB) üstü trafik aktıysa süreye eklenir. Arka planda oynayan video da sayılır, mobil veride geçen süre görünmez |
 | `keenetic_client_app_usage_seconds_total` | Aynı ölçüm uygulama başına (`app`: YouTube, WhatsApp, Instagram…; `group` kategorisiyle). Yalnız trafiği görülen uygulamalar için seri açılır |
+| `keenetic_client_usage_today_seconds` | Kategori başına bugünkü kullanım (sn); router saatiyle gece yarısı sıfırlanır. Exporter'da tutulur, yeniden başlayınca o günün sayımı sıfırdan başlar |
 | `keenetic_admin_login_seconds` | Router günlüğünden yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç; exporter'da 1 saat tutulur |
 | `keenetic_log_lines_total` / `keenetic_log_read_seconds` | Cihaz başına router günlüğünden okunan satır ve son okuma zamanı |
 
@@ -154,6 +155,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |
 | 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse, tek mesaj. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
 | 🟢 İnternet geri geldi | 2 dk'dan uzun kesinti bitince, tek mesaj: kesinti süresi ve başlangıç–bitiş saati |
+| ⏱️ Günlük kullanım 1 saati aştı | Bir cihaz bugün Sosyal, Video ve yayın ya da Oyun kategorisinde 1 saati geçince, cihaz ve kategori başına günde bir mesaj (router'da adı olmayan cihazlar hariç). Kategoriler ve süre `rules.yml`'deki `keenetic-usage-limit` kuralında |
 | 🟠 Ping kontrolü başarısız, hat açık | PPPoE bağlı ve ağ geçidi yanıt verirken ping kontrolü 3 dk başarısızsa. Router bu durumda IPv4 rotasını kapatıp açar (paket kaybı, VPN kopmaları); genelde kontrol hedefi erişilemiyordur (Otomatik modda captive.keenetic.net) |
 | 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
