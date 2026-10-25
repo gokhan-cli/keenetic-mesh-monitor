@@ -435,7 +435,7 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Ethernet portları (Mbps, 0=kapalı)",
+      "title": "Ethernet port hızları (Mbps, 0=kapalı)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -443,8 +443,8 @@
       "gridPos": {
         "x": 0,
         "y": 17,
-        "w": 24,
-        "h": 7
+        "w": 14,
+        "h": 14
       },
       "targets": [
         {
@@ -491,7 +491,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -508,7 +508,7 @@
       "description": "Router'ların süreç listesinden (show processes). Tür: Servis = KeeneticOS'un yönettiği servis; Süreç = servis olmayan arka plan programı (ör. Entware'den tailscaled, cron). Yalnız seçili aralıkta en az bir kez çalışmış olanlar listelenir; kullanılmayan arayüzlerin servisleri görünmez. Durum: Durmuş = ayarlarda açık ama çalışmıyor (uyarı gider); Kapalı = ayarlardan kapatılmış, uyarı üretmez; Beklemede = yalnız gerektiğinde çalışan servis (ör. ARP ping check), şu an çalışmıyor, sorun değil. Yeniden başlama = aralıkta süreç numarasının kaç kez değiştiği. Ayarlarda açık bir servis durursa ya da bir süreç kaybolursa 🔴, yeniden başlarsa 🟠 Telegram uyarısı gelir (VPN, PPPoE ve isteğe bağlı çalışanlar hariç; onların kendi uyarıları var).",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 32,
         "w": 14,
         "h": 10
       },
@@ -748,7 +748,7 @@
       "description": "Süreç başına bellek (RSS). Sürekli artan bir çizgi bellek sızıntısına işaret eder. Ana router'da en çok bellek kullananlar genelde tailscaled, Trafik İzleme (Ntce::Manager) ve ndm'dir.",
       "gridPos": {
         "x": 14,
-        "y": 25,
+        "y": 32,
         "w": 10,
         "h": 10
       },
@@ -790,6 +790,167 @@
           "mode": "multi",
           "sort": "desc"
         }
+      }
+    },
+    {
+      "id": 64,
+      "type": "table",
+      "title": "Ethernet portları (anlık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Controller ve mesh üyelerinin Ethernet portları. \"(İSS)\" internet portu. 100 Mbps görünen bir port kablo ya da karşı cihaz sınırı olabilir (ör. Hue köprüsü gibi cihazlar en fazla 100 Mbps destekler).",
+      "gridPos": {
+        "x": 14,
+        "y": 17,
+        "w": 10,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "max by (name, port) (keenetic_mesh_port_link_up)"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "max by (name, port) (keenetic_mesh_port_speed_mbps)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "name": 0,
+              "port": 1,
+              "Value #A": 2,
+              "Value #B": 3
+            },
+            "renameByName": {
+              "name": "Cihaz",
+              "port": "Port",
+              "Value #A": "Durum",
+              "Value #B": "Hız"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Cihaz"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Durum"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Bağlı",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Boş",
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hız"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: Mbps"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "orange",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1000
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
       }
     }
   ],

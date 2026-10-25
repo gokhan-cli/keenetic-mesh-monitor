@@ -85,7 +85,7 @@ scrape_configs:
 | `keenetic_mesh_backhaul_uptime_seconds` | Sıfırlanma = backhaul koptu |
 | `keenetic_mesh_backhaul_wireless` | 1 = Wi-Fi, 0 = kablolu backhaul |
 | `keenetic_mesh_member_cpu_load`, `_memory_*`, `_associations` | Node sistemi |
-| `keenetic_mesh_port_link_up` / `_speed_mbps` | Node Ethernet portları |
+| `keenetic_mesh_port_link_up` / `_speed_mbps` | Controller ve node Ethernet portları (controller'ın internet portu `port="0 (İSS)"` gibi işaretli) |
 | `keenetic_wifi_client_*` | Wi-Fi istemcileri; `device` = bağlı olduğu cihaz (controller ya da mesh üyesi) |
 | `keenetic_wifi_neighbor_rssi_dbm` / `_quality` | Çevredeki Wi-Fi ağları (site survey; `scanner` = tarayan cihaz, SSID, BSSID, kanal, genişlik, şifreleme) |
 | `keenetic_wifi_neighbor_channel` | Çevredeki ağın kanalı (değer olarak); komşuların kanal değiştirmesi grafikte izlenir |

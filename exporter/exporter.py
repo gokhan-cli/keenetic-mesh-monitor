@@ -440,9 +440,9 @@ class MeshCollector:
             "backhaul_uptime_seconds": "Backhaul bağlantı süresi",
             "backhaul_cost": "Backhaul STP yol maliyeti",
         }.items()}
-        port_up = GaugeMetricFamily("keenetic_mesh_port_link_up", "Extender Ethernet port bağlantısı (1/0)",
+        port_up = GaugeMetricFamily("keenetic_mesh_port_link_up", "Ethernet port bağlantısı, controller ve mesh üyeleri (1/0)",
                                     labels=L + ["port"])
-        port_speed = GaugeMetricFamily("keenetic_mesh_port_speed_mbps", "Extender Ethernet port hızı (Mbps)",
+        port_speed = GaugeMetricFamily("keenetic_mesh_port_speed_mbps", "Ethernet port hızı, controller ve mesh üyeleri (Mbps)",
                                        labels=L + ["port"])
         inet = GaugeMetricFamily("keenetic_mesh_member_internet_available", "Extender internete erişebiliyor mu",
                                  labels=L)
@@ -492,6 +492,23 @@ class MeshCollector:
                 port_up.add_metric(lv + [label], 1 if is_up else 0)
                 if is_up and num(p.get("speed")) is not None:
                     port_speed.add_metric(lv + [label], num(p.get("speed")))
+
+        # Controller'ın kendi portları: show/interface "Port" kalemleri; internet portu "(İSS)" ekiyle
+        try:
+            ifs = self.c.get("show/interface")
+            cmac = ((ifs.get("Bridge0") or {}).get("mac") or "controller").lower()
+            for p in ifs.values():
+                if not isinstance(p, dict) or p.get("type") != "Port":
+                    continue
+                label = str(p.get("label", "?"))
+                if any(isinstance(r, dict) and r.get("role") == "inet" for r in p.get("role") or []):
+                    label += " (İSS)"
+                is_up = p.get("link") == "up"
+                port_up.add_metric([cmac, CONTROLLER_NAME, label], 1 if is_up else 0)
+                if is_up and num(p.get("speed")) is not None:
+                    port_speed.add_metric([cmac, CONTROLLER_NAME, label], num(p["speed"]))
+        except Exception as e:  # opsiyonel veri
+            log.warning("controller portları okunamadı: %s", e)
 
         yield info
         yield from m.values()
