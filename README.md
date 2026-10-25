@@ -51,7 +51,7 @@ Dashboard'lar **Keenetic** klasöründe otomatik gelir; üstteki düğmelerle se
 | Wi-Fi ve mesh | Mesh bağlantısı, Wi-Fi istemcileri, mesh dolaşımı, radyolar, çevredeki Wi-Fi ağları |
 | Güvenlik | Giriş koruması, saldıran IP'ler, DoS koruması, yönetici girişleri |
 | Sistem ve yazılım | Yazılım ve güncellemeler, CPU / bellek / açık kalma süresi, Ethernet portları, servisler |
-| Kullanım süresi | Cihaz başına kategori (sosyal medya, video, oyun…) kullanım süresi: seçili aralıkta, günlük, saatlik ve gece (23:00–06:00). Ekran süresi değil, trafiğin aktığı dakikalardır (bkz. `keenetic_client_usage_*`) |
+| Kullanım süresi | Cihaz başına en çok kullanılan uygulamalar ve kategori (sosyal medya, video, oyun…) kullanım süresi: seçili aralıkta, günlük, saatlik ve gece (23:00–06:00). Ekran süresi değil, trafiğin aktığı dakikalardır (bkz. `keenetic_client_usage_*`) |
 
 ### Yalnız exporter (kendi Prometheus / Grafana'nız varsa)
 
@@ -108,6 +108,7 @@ scrape_configs:
 | `keenetic_service_up` / `_enabled` / `_pid` / `_memory_bytes` | Cihaz başına KeeneticOS servisleri (`kind=servis`) ve servis olmayan arka plan süreçleri (`kind=süreç`, ör. Entware'den tailscaled): çalışıyor mu, ayarlarda açık mı, süreç numarası, bellek |
 | `keenetic_application_active` | Router'ın son 3 dakikada trafik saydığı uygulama sayısı; trafik varken 0 kalıyorsa Trafik İzleme sayacı durmuştur |
 | `keenetic_client_usage_seconds_total` / `_bytes_total` | Cihaz (`mac`, `name`) ve kategori (`group`) başına kullanım süresi ve trafik. Router'ın açık bağlantı listesinden (`show ntce hosts`) dakikada bir: o dakika kategoride `USAGE_MIN_BYTES` (50 KB) üstü trafik aktıysa süreye eklenir. Arka planda oynayan video da sayılır, mobil veride geçen süre görünmez |
+| `keenetic_client_app_usage_seconds_total` | Aynı ölçüm uygulama başına (`app`: YouTube, WhatsApp, Instagram…; `group` kategorisiyle). Yalnız trafiği görülen uygulamalar için seri açılır |
 | `keenetic_admin_login_seconds` | Router günlüğünden yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç; exporter'da 1 saat tutulur |
 | `keenetic_log_lines_total` / `keenetic_log_read_seconds` | Cihaz başına router günlüğünden okunan satır ve son okuma zamanı |
 

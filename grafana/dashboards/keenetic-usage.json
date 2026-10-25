@@ -62,7 +62,8 @@
             "mode": "fixed",
             "fixedColor": "blue"
           },
-          "min": 0
+          "min": 0,
+          "displayName": "${__field.labels.name}"
         },
         "overrides": []
       },
@@ -169,7 +170,7 @@
       "description": "Her çubuk bir günün toplamıdır. Günler UTC gece yarısında, yani TSİ 03:00'te başlar; böylece gece yarısından sonraki kullanım önceki güne yazılır.",
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 20,
         "w": 24,
         "h": 9
       },
@@ -227,7 +228,7 @@
       "description": "Saat başına kullanım dakikası (en fazla 60). Gece kullanımını görmek için.",
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 29,
         "w": 16,
         "h": 9
       },
@@ -282,7 +283,7 @@
       "description": "TSİ (UTC+3) 23:00–06:00 arasındaki dakikalar.",
       "gridPos": {
         "x": 16,
-        "y": 18,
+        "y": 29,
         "w": 8,
         "h": 9
       },
@@ -327,6 +328,111 @@
               {
                 "id": "unit",
                 "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Cihaz başına uygulamalar (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Her cihazın en çok zaman geçirdiği uygulamalar; tüm kategoriler (üstteki Kategori seçimi bu tabloyu etkilemez, Cihaz seçimi etkiler). CDN, şifreli trafik, reklam, ağ yönetimi gibi altyapı kalemleri gösterilmez. Aynı dakikada birden çok uygulama kullanılabildiği için toplamlar duvar saatinden uzun olabilir.",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "sort_desc(sum by (name, app, group) (increase(keenetic_client_app_usage_seconds_total{name=~\"${cihaz:regex}\", group!~\"Bulut ve CDN|Şifreli|Reklam ve analiz|Ağ yönetimi|Sınıflandırılmamış|İş uygulamaları|Uygulama mağazaları ve güncellemeler|Tünel / VPN\"}[$__range])) / 60 > 0)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "name": 0,
+              "app": 1,
+              "group": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "name": "Cihaz",
+              "app": "Uygulama",
+              "group": "Kategori",
+              "Value": "Süre"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Süre",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Süre"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: dk"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
               }
             ]
           }
