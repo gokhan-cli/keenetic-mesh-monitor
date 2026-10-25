@@ -131,10 +131,11 @@ groups:
         for: 2m
         noDataState: OK
         execErrState: Error
-        labels: { severity: critical }
+        # "Düzeldi" yerine "İnternet geri geldi" uyarısı kesinti süresiyle gelir
+        labels: { severity: critical, notify: once }
         annotations:
           summary: "🔴 İnternet bağlantısı yok"
-          description: "Router 2 dakikadır internete erişemiyor. Bu mesaj bağlantı gelince iletilir; kesintinin başlangıcı Olay Saati'dir."
+          description: "Router 2 dakikadır internete erişemiyor. Bu mesaj bağlantı gelince iletilir; kesintinin başlangıcı Olay Saati'dir. Bağlantı gelince kesinti süresi ayrıca bildirilir."
         data:
           - refId: A
             relativeTimeRange: { from: 600, to: 0 }
@@ -144,6 +145,35 @@ groups:
               instant: true
               # Router kendi kontrolünü yapar (ağ geçidi, DNS, captive)
               expr: '1 - keenetic_internet_up'
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-internet-restored
+        title: İnternet geri geldi
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: info, notify: once }
+        annotations:
+          summary: "🟢 İnternet geri geldi: {{ .Labels.text }} kesinti"
+          description: "Kesinti {{ .Labels.started }} – {{ .Labels.ended }} arasında sürdü (router saati)."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Exporter biten kesintiyi yeni bir seri olarak verir; 10 dk önce olmayan seri = yeni biten kesinti.
+              # 2 dk'dan kısa kesintiler "İnternet bağlantısı yok" uyarısı da üretmediği için bildirilmez
+              expr: 'keenetic_internet_outage_seconds{ended!="sürüyor"} > 120 unless keenetic_internet_outage_seconds offset 10m'
           - refId: B
             datasourceUid: __expr__
             model:
@@ -190,7 +220,7 @@ groups:
         for: 0s
         noDataState: OK
         execErrState: Error
-        labels: { severity: warning }
+        labels: { severity: warning, notify: once }
         annotations:
           summary: "🟠 İnternet bağlantısı yeniden kuruldu: {{ .Labels.interface }}"
           description: "{{ .Labels.interface }} bağlantısı son 10 dakikada koptu ve yeniden kuruldu (PPPoE oturumu yenilendi)."
@@ -536,10 +566,14 @@ groups:
               instant: true
               # Mesh'teki bir cihaz son 15 dk'da yeniden başladıysa hiçbiri sayılmaz: kendi
               # servisleri baştan açılır, controller açılınca mesh üyeleri de Wi-Fi ve
-              # bulut servislerini yeniden başlatır. O durumu "Yeniden başladı" uyarısı bildirir
+              # bulut servislerini yeniden başlatır. O durumu "Yeniden başladı" uyarısı bildirir.
+              # İnternet kopup geldiyse de sayılmaz: router DNS proxy'lerini (DoH/DoT) ve
+              # IPv6 DHCP sunucusunu yeni WAN adresiyle yeniden başlatır
               expr: >-
                 changes(keenetic_service_pid{service!~"IPERF3|Reboot helper|ARP ping check|LLDP agent on .*|Link-layer discovery observer|OpenVPN.*|Wireguard.*|PPPoE.*|.*-PPPoE.*"}[10m]) > 0
                 and on() (min(keenetic_system_uptime_seconds) > 900)
+                unless on() (sum(resets(keenetic_wan_uptime_seconds[15m])) > 0)
+                unless on() (min_over_time(keenetic_internet_up[15m]) < 1)
           - refId: B
             datasourceUid: __expr__
             model:

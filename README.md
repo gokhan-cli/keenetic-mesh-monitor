@@ -94,7 +94,8 @@ scrape_configs:
 | `keenetic_lockout_*` | Giriş koruması (Sistem Güvenliği → Kimlik Doğrulama Güvenliği), cihaz ve protokol (http/telnet/ssh) başına: açık mı, şu an engellenen / takip edilen / son 1 saatte / toplam engellenen IP sayısı, eşik ve süreler |
 | `keenetic_conntrack_*` | Bağlantı taşması (DoS) koruması: açık mı, devrede mi, eşik (%), bağlantı sayıları (`scope` = public/private) ve tablo kapasitesi |
 | `keenetic_internet_up` / `keenetic_internet_check` | Router'ın internet kontrolü (ağ geçidi, DNS, captive) |
-| `keenetic_wan_*` | İnternete çıkan arayüz (PPPoE vb.): bağlı mı, oturum süresi, alınan/gönderilen bayt, hata ve düşen paket sayaçları |
+| `keenetic_internet_outage_seconds` | İnternet kesintileri (son 50): `started` / `ended` router saatiyle, `text` Türkçe süre; değer = süre (sn). Devam eden kesintide `ended="sürüyor"`. Exporter'da tutulur, yeniden başlayınca liste boşalır (Prometheus geçmişi kalır) |
+| `keenetic_wan_*` | İnternete çıkan arayüz (PPPoE vb.): bağlı mı, oturum süresi, alınan/gönderilen bayt, hata ve düşen paket sayaçları. `interface` etiketi router'daki görünen addır (`interface PPPoE1 rename PPPoE0` ile değiştirildiyse PPPoE0); VPN ve ping kontrolünde de aynı |
 | `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
 | `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
 | `keenetic_system_*` | Cihaz başına (controller ve node'lar) CPU yükü, bellek ve açık kalma süresi |
@@ -150,7 +151,8 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🔴 IP engellendi | Router günlüğünde "ban remote host" satırı gelince: cihaz, IP, protokol, son istenen yollar ve AbuseIPDB bağlantısı. Engel bitince "Düzeldi" gelir |
 | 🔴 Giriş denemesi engellendi | Router bir IP'yi engellediğinde ama günlükten IP bilgisi okunamadıysa (yedek; IP içermez) |
 | 🔴 DoS koruması devrede | Bağlantı taşması koruması devreye girdiğinde |
-| 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
+| 🔴 İnternet bağlantısı yok | Router 2 dk boyunca internete erişemezse, tek mesaj. Kesinti sırasında gönderilemez, bağlantı gelince iletilir |
+| 🟢 İnternet geri geldi | 2 dk'dan uzun kesinti bitince, tek mesaj: kesinti süresi ve başlangıç–bitiş saati |
 | 🟠 Ping kontrolü başarısız, hat açık | PPPoE bağlı ve ağ geçidi yanıt verirken ping kontrolü 3 dk başarısızsa. Router bu durumda IPv4 rotasını kapatıp açar (paket kaybı, VPN kopmaları); genelde kontrol hedefi erişilemiyordur (Otomatik modda captive.keenetic.net) |
 | 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |

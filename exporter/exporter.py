@@ -336,6 +336,8 @@ class MeshCollector:
         self.apps = apps
         self.services = services
         self.usage = usage
+        self.outage_start = None  # internet kesintisinin başladığı zaman (sürüyorsa)
+        self.outages = []         # biten kesintiler: (başlangıç, bitiş, router saat farkı)
         self.roam = roam
         self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
@@ -656,6 +658,10 @@ class MeshCollector:
         except Exception as e:  # opsiyonel veri; mesh metrikleri etkilenmesin
             log.warning("internet durumu okunamadı: %s", e)
             return
+        # "interface X rename Y" yalnız görünen adı (interface-name) değiştirir, kimlik aynı kalır
+        def label(name):
+            return (ifs.get(name) or {}).get("interface-name") or name if isinstance(ifs.get(name), dict) else name
+
         inet = GaugeMetricFamily("keenetic_internet_up", "Router'a göre internet erişimi var mı (1/0)")
         inet.add_metric([], 1 if st.get("internet") else 0)
         chk = GaugeMetricFamily("keenetic_internet_check", "Router'ın internet kontrolleri (1/0)", labels=["check"])
@@ -672,7 +678,7 @@ class MeshCollector:
                                   labels=["profile", "interface"])
         for prof in pings:
             for name, d in (prof.get("interface") or {}).items():
-                lv = [prof.get("profile", ""), name]
+                lv = [prof.get("profile", ""), label(name)]
                 ping.add_metric(lv, 1 if d.get("status") == "pass" else 0)
                 v = num(d.get("failcount"))
                 if v is not None:
@@ -695,18 +701,19 @@ class MeshCollector:
         }.items()}
         w = ifs.get(wan) if wan else None
         if isinstance(w, dict):
-            winfo.add_metric([wan, w.get("description", ""), w.get("type", ""), w.get("via", "")], 1)
-            wup.add_metric([wan], 1 if w.get("connected") == "yes" else 0)
+            wl = label(wan)
+            winfo.add_metric([wl, w.get("description", ""), w.get("type", ""), label(w.get("via", ""))], 1)
+            wup.add_metric([wl], 1 if w.get("connected") == "yes" else 0)
             if num(w.get("uptime")) is not None:
-                wtime.add_metric([wan], num(w.get("uptime")))
-                wtext.add_metric([wan, tr_duration(num(w.get("uptime")))], 1)
+                wtime.add_metric([wl], num(w.get("uptime")))
+                wtext.add_metric([wl, tr_duration(num(w.get("uptime")))], 1)
             try:
                 stat = self.c.get(f"show/interface/stat?name={wan}")
                 for k, src in [("receive_bytes", "rxbytes"), ("transmit_bytes", "txbytes"),
                                ("receive_errors", "rxerrors"), ("transmit_errors", "txerrors"),
                                ("receive_drops", "rxdropped"), ("transmit_drops", "txdropped")]:
                     if num(stat.get(src)) is not None:
-                        cnt[k].add_metric([wan], num(stat[src]))
+                        cnt[k].add_metric([wl], num(stat[src]))
             except Exception as e:
                 log.debug("WAN sayaçları okunamadı: %s", e)
         yield winfo
@@ -724,7 +731,7 @@ class MeshCollector:
         for name, v in ifs.items():
             if not isinstance(v, dict) or str(v.get("type", "")).lower() not in VPN_TYPES:
                 continue
-            lv = [name, v.get("description") or name, v.get("type", "")]
+            lv = [label(name), v.get("description") or label(name), v.get("type", "")]
             ven.add_metric(lv, 1 if v.get("state") == "up" else 0)
             vup.add_metric(lv, 1 if v.get("connected") == "yes" else 0)
             if num(v.get("uptime")) is not None and v.get("connected") == "yes":
@@ -734,6 +741,44 @@ class MeshCollector:
         yield vup
         yield vtime
         yield vtext
+        yield self._outages(bool(st.get("internet")))
+
+    def _outages(self, up):
+        """İnternet kesintileri: başlangıç/bitiş router saatiyle, değer = süre (sn).
+        Router'a erişilemezken (ör. yeniden başlarken) kesinti sürüyor sayılır;
+        süre okuma aralığı (Prometheus'un çekme aralığı) kadar yaklaşıktır."""
+        now = time.time()
+        if not up and self.outage_start is None:
+            try:
+                offset = LogWorker._clock(self.c)[0]
+            except Exception:
+                offset = self.outages[-1][2] if self.outages else 0
+            self.outage_start = (now, offset)
+        elif up and self.outage_start is not None:
+            start, offset = self.outage_start
+            self.outages = (self.outages + [(start, now, offset)])[-50:]
+            log.info("internet kesintisi bitti: %s", self._minutes(now - start))
+            self.outage_start = None
+        fmt = lambda t, off: time.strftime("%Y-%m-%d %H:%M", time.gmtime(t + off))
+        fam = GaugeMetricFamily("keenetic_internet_outage_seconds",
+                                "İnternet kesintisinin süresi; başlangıç/bitiş router saatiyle (son 50 kesinti)",
+                                labels=["started", "ended", "text"])
+        for start, end, off in self.outages:
+            ended = fmt(end, off)
+            same_day = ended[:10] == fmt(start, off)[:10]
+            fam.add_metric([fmt(start, off), ended[11:] if same_day else ended, self._minutes(end - start)], end - start)
+        if self.outage_start is not None:
+            start, off = self.outage_start
+            fam.add_metric([fmt(start, off), "sürüyor", ""], now - start)
+        return fam
+
+    @staticmethod
+    def _minutes(seconds):
+        """Kesinti süresi dakika hassasiyetinde: "1 saat 12 dk", "36 dk"."""
+        h, m = divmod(round(seconds / 60), 60)
+        if h:
+            return f"{h} saat {m} dk" if m else f"{h} saat"
+        return f"{m} dk" if m else "1 dk'dan az"
 
     def _system(self):
         L = ["device"]

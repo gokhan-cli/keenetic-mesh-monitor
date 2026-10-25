@@ -1449,7 +1449,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 36,
         "w": 24,
         "h": 1
       },
@@ -1465,7 +1465,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 37,
         "w": 10,
         "h": 10
       },
@@ -1618,7 +1618,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 29,
+        "y": 37,
         "w": 14,
         "h": 10
       },
@@ -1670,7 +1670,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 47,
         "w": 24,
         "h": 1
       },
@@ -1686,7 +1686,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 48,
         "w": 10,
         "h": 10
       },
@@ -1853,7 +1853,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 40,
+        "y": 48,
         "w": 14,
         "h": 10
       },
@@ -1909,7 +1909,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 58,
         "w": 10,
         "h": 9
       },
@@ -1964,7 +1964,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 50,
+        "y": 58,
         "w": 14,
         "h": 9
       },
@@ -2009,6 +2009,185 @@
         }
       },
       "interval": "2m"
+    },
+    {
+      "id": 69,
+      "type": "table",
+      "title": "İnternet kesintileri (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router'ın internet erişimi olmadığı aralıklar, router saatiyle. Exporter kaydeder (son 50 kesinti); süre 30 sn kadar yaklaşıktır. Router yeniden başlarken geçen süre de kesintiye dahildir.",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "max by (started, ended, text) (max_over_time(keenetic_internet_outage_seconds{ended!=\"sürüyor\"}[$__range])) or max by (started, ended, text) (keenetic_internet_outage_seconds{ended=\"sürüyor\"})"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "started": 0,
+              "ended": 1,
+              "text": 2
+            },
+            "renameByName": {
+              "started": "Başlangıç",
+              "ended": "Bitiş",
+              "text": "Süre"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Başlangıç",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bitiş"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "sürüyor": {
+                        "text": "Sürüyor",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 70,
+      "type": "state-timeline",
+      "title": "İnternet erişimi",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router'ın internet erişimi; kırmızı aralıkların üstüne gelince süresi görünür. Prometheus geçmişinden, exporter'ın kesinti kaydından önceki dönem için de çalışır.",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_internet_up",
+          "legendFormat": "İnternet"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Var",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Yok",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
     }
   ],
   "links": [
