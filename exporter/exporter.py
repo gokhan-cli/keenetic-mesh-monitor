@@ -1326,6 +1326,7 @@ class UsageWorker(DeviceWorker):
     def _poll(self):
         now = time.time()
         cur, groups, apps = {}, {}, {}  # (mac, ad, grup) / (mac, ad, uygulama, grup) -> bu aralıktaki bayt
+        names = {}  # mac -> router'daki güncel ad
         cl = client(HOST)
         day = time.strftime("%Y-%m-%d", time.gmtime(now + LogWorker._clock(cl)[0]))
         for h in cl.post("show/ntce/hosts", {}).get("host") or []:
@@ -1333,6 +1334,7 @@ class UsageWorker(DeviceWorker):
             if not mac:
                 continue
             name = AUTO_NAME_SUFFIX.sub("", info.get("name") or "") or info.get("hostname") or mac
+            names[mac] = name
             for a in h.get("application") or []:
                 key = (mac, a.get("id-num"))
                 b = (num(a.get("rxbytes")) or 0) + (num(a.get("txbytes")) or 0)
@@ -1346,6 +1348,7 @@ class UsageWorker(DeviceWorker):
                 k = (mac, name, AppWorker._app_name(a), g[2])
                 apps[k] = apps.get(k, 0) + delta
         with self.lock:
+            self._rename(names)
             if self.prev_at is not None:
                 elapsed = min(now - self.prev_at, 2 * self.interval)
                 if day != self.day:
@@ -1370,6 +1373,19 @@ class UsageWorker(DeviceWorker):
                     elif b >= USAGE_MIN_BYTES * elapsed / 60:
                         self.apps[k] += elapsed
             self.prev, self.prev_at = cur, now
+
+
+    def _rename(self, names):
+        """Router'da adı değişen cihazın sayaçları yeni ada taşınır; eski adlı seri
+        kalmaz. Yeni seri eski değerle başlar, increase() ilk değeri saymadığı için sıçrama olmaz."""
+        for store in (self.counts, self.apps, self.today):
+            for key in [k for k in store if k[0] in names and k[1] != names[k[0]]]:
+                new = (key[0], names[key[0]]) + key[2:]
+                old = store.pop(key)
+                if new not in store:
+                    store[new] = old
+                elif store is self.today:  # bugünkü süre kaybolmasın; sayaçlar sıçramasın diye toplanmaz
+                    store[new] += old
 
 
 class ServiceWorker(DeviceWorker):
