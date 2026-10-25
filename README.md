@@ -51,6 +51,7 @@ Dashboard'lar **Keenetic** klasöründe otomatik gelir; üstteki düğmelerle se
 | Wi-Fi ve mesh | Mesh bağlantısı, Wi-Fi istemcileri, mesh dolaşımı, radyolar, çevredeki Wi-Fi ağları |
 | Güvenlik | Giriş koruması, saldıran IP'ler, DoS koruması, yönetici girişleri |
 | Sistem ve yazılım | Yazılım ve güncellemeler, CPU / bellek / açık kalma süresi, Ethernet portları, servisler |
+| Kullanım süresi | Cihaz başına kategori (sosyal medya, video, oyun…) kullanım süresi: seçili aralıkta, günlük, saatlik ve gece (23:00–06:00). Ekran süresi değil, trafiğin aktığı dakikalardır (bkz. `keenetic_client_usage_*`) |
 
 ### Yalnız exporter (kendi Prometheus / Grafana'nız varsa)
 
@@ -71,7 +72,7 @@ scrape_configs:
       - targets: ["<exporter-ip>:9877"]
 ```
 
-- **Dashboard'lar:** Grafana → Dashboards → New → Import ile `grafana/dashboards/` altındaki 4 JSON dosyasını (`keenetic-mesh`, `-wifi`, `-security`, `-system`) tek tek içe aktarın; aralarındaki düğmeler `keenetic` etiketiyle bulunur. Paneller Prometheus veri kaynağını `uid: prometheus` ile arar; sizinkinin uid'i farklıysa ya veri kaynağını bu uid ile oluşturun ya da dosyalarda `"uid": "prometheus"` geçen yerleri kendi uid'inizle değiştirin.
+- **Dashboard'lar:** Grafana → Dashboards → New → Import ile `grafana/dashboards/` altındaki 5 JSON dosyasını (`keenetic-mesh`, `-wifi`, `-security`, `-system`, `-usage`) tek tek içe aktarın; aralarındaki düğmeler `keenetic` etiketiyle bulunur. Paneller Prometheus veri kaynağını `uid: prometheus` ile arar; sizinkinin uid'i farklıysa ya veri kaynağını bu uid ile oluşturun ya da dosyalarda `"uid": "prometheus"` geçen yerleri kendi uid'inizle değiştirin.
 - **Uyarılar (isteğe bağlı):** `grafana/provisioning/alerting/rules.yml` Grafana provisioning dosyasıdır; kendi Grafana'nızın `provisioning/alerting/` klasörüne kopyalayın (aynı `uid: prometheus` koşulu geçerli). Telegram için `telegram.yml.example`'ı da ekleyin (bkz. "Telegram uyarıları").
 
 ## Metrikler
@@ -105,6 +106,7 @@ scrape_configs:
 | `keenetic_security_ip_*` / `keenetic_security_ban_until_seconds` | Router günlüğünden saldıran IP'ler (cihaz ve IP başına): son görülme, engellenme ve kötü niyetli istek sayısı, son istenen yollar, engelin bitiş zamanı. Son 24 saat (`LOG_RETENTION`) |
 | `keenetic_service_up` / `_enabled` / `_pid` / `_memory_bytes` | Cihaz başına KeeneticOS servisleri (`kind=servis`) ve servis olmayan arka plan süreçleri (`kind=süreç`, ör. Entware'den tailscaled): çalışıyor mu, ayarlarda açık mı, süreç numarası, bellek |
 | `keenetic_application_active` | Router'ın son 3 dakikada trafik saydığı uygulama sayısı; trafik varken 0 kalıyorsa Trafik İzleme sayacı durmuştur |
+| `keenetic_client_usage_seconds_total` / `_bytes_total` | Cihaz (`mac`, `name`) ve kategori (`group`) başına kullanım süresi ve trafik. Router'ın açık bağlantı listesinden (`show ntce hosts`) dakikada bir: o dakika kategoride `USAGE_MIN_BYTES` (50 KB) üstü trafik aktıysa süreye eklenir. Arka planda oynayan video da sayılır, mobil veride geçen süre görünmez |
 | `keenetic_admin_login_seconds` | Router günlüğünden yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç; exporter'da 1 saat tutulur |
 | `keenetic_log_lines_total` / `keenetic_log_read_seconds` | Cihaz başına router günlüğünden okunan satır ve son okuma zamanı |
 

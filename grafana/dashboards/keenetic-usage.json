@@ -1,0 +1,429 @@
+{
+  "uid": "keenetic-usage",
+  "title": "Keenetic · Kullanım süresi",
+  "tags": [
+    "keenetic"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Panolar",
+      "type": "dashboards",
+      "tags": [
+        "keenetic"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "Cihaz başına süre (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Seçili kategorilerde trafiğin aktığı dakikalar. Bir dakika, o kategoride USAGE_MIN_BYTES (varsayılan 50 KB) üstü trafik varsa sayılır; bildirim gibi küçük arka plan trafiği sayılmaz. Ekran süresi değildir: arka planda çalan video da sayılır, mobil veride geçen süre görünmez.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 10,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sort_desc(sum by (name) (increase(keenetic_client_usage_seconds_total{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}[$__range])) / 60 > 0)",
+          "instant": true,
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 28
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Cihaz ve kategori (seçili aralık, dakika)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Seçili kategorilerin cihaz başına dakikaları.",
+      "gridPos": {
+        "x": 10,
+        "y": 0,
+        "w": 14,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name, group) (increase(keenetic_client_usage_seconds_total{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}[$__range])) / 60 > 0",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "group",
+            "rowField": "name",
+            "valueField": "Value",
+            "emptyValue": "zero"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "name\\group": "Cihaz"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0,
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Günlük süre (cihaz başına)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Her çubuk bir günün toplamıdır. Günler UTC gece yarısında, yani TSİ 03:00'te başlar; böylece gece yarısından sonraki kullanım önceki güne yazılır.",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 9
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (increase(keenetic_client_usage_seconds_total{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}[1d])) / 60",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            },
+            "barAlignment": -1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Saatlik süre (cihaz başına)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Saat başına kullanım dakikası (en fazla 60). Gece kullanımını görmek için.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 16,
+        "h": 9
+      },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (increase(keenetic_client_usage_seconds_total{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}[1h])) / 60",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0,
+          "max": 60,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            },
+            "barAlignment": -1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Gece kullanımı (23:00–06:00, seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "TSİ (UTC+3) 23:00–06:00 arasındaki dakikalar.",
+      "gridPos": {
+        "x": 16,
+        "y": 18,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sort_desc(sum by (name) (sum_over_time((sum by (name) (increase(keenetic_client_usage_seconds_total{group=~\"${kategori:regex}\", name=~\"${cihaz:regex}\"}[1h])) and on() (hour() >= 21 or hour() <= 3))[$__range:1h])) / 60 > 0)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "name": "Cihaz",
+              "Value": "Gece"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: dk",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "kategori",
+        "label": "Kategori",
+        "type": "custom",
+        "multi": true,
+        "includeAll": false,
+        "query": "Sosyal,Video ve yayın,Mesajlaşma,Oyun,Müzik ve ses,Yapay zekâ,Tarayıcılar,Alışveriş",
+        "current": {
+          "text": [
+            "Sosyal"
+          ],
+          "value": [
+            "Sosyal"
+          ]
+        },
+        "options": [
+          {
+            "text": "Sosyal",
+            "value": "Sosyal",
+            "selected": true
+          },
+          {
+            "text": "Video ve yayın",
+            "value": "Video ve yayın",
+            "selected": false
+          },
+          {
+            "text": "Mesajlaşma",
+            "value": "Mesajlaşma",
+            "selected": false
+          },
+          {
+            "text": "Oyun",
+            "value": "Oyun",
+            "selected": false
+          },
+          {
+            "text": "Müzik ve ses",
+            "value": "Müzik ve ses",
+            "selected": false
+          },
+          {
+            "text": "Yapay zekâ",
+            "value": "Yapay zekâ",
+            "selected": false
+          },
+          {
+            "text": "Tarayıcılar",
+            "value": "Tarayıcılar",
+            "selected": false
+          },
+          {
+            "text": "Alışveriş",
+            "value": "Alışveriş",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "name": "cihaz",
+        "label": "Cihaz",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "multi": true,
+        "includeAll": true,
+        "query": {
+          "query": "label_values(keenetic_client_usage_seconds_total, name)",
+          "refId": "cihaz"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Cihaz başına kategori (sosyal medya, video vb.) kullanım süresi; router'ın açık bağlantı listesinden."
+}

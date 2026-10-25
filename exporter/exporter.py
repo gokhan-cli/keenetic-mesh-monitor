@@ -12,6 +12,7 @@ Kaynaklar:
   /rci/show/internet/status, show/interface -> internet, WAN (PPPoE) ve VPN tünelleri
   /rci/show/system       -> cihaz başına CPU, bellek, açık kalma süresi
   /rci/show/mws/log      -> mesh dolaşım günlüğü (istemci geçişleri, bağlanma/ayrılma)
+  /rci/show/ntce/hosts   -> cihaz başına açık bağlantılar ve uygulamaları (kategori kullanım süresi)
   /rci/show/log          -> router günlüğü: engellenen IP'ler, kötü niyetli istekler, yönetici girişleri
 """
 import base64
@@ -81,7 +82,13 @@ APP_GROUPS = {
     "News": "Haber", "Peer to Peer": "P2P", "Search Engines": "Arama motorları",
     "Social": "Sosyal", "App-Stores and OS Updates": "Uygulama mağazaları ve güncellemeler",
     "Business": "İş uygulamaları", "Enterprise Services": "Kurumsal servisler", "Voice over IP": "İnternet telefonu",
+    "Streaming": "Video ve yayın", "Audio Entertainment": "Müzik ve ses", "Browsers": "Tarayıcılar",
 }
+# Cihaz başına kategori kullanım süresi (show ntce hosts) okuma aralığı (sn, 0 = kapalı)
+USAGE_INTERVAL = int(os.environ.get("USAGE_INTERVAL", "60"))
+# Bir kategorinin o dakika "kullanılıyor" sayılması için gereken trafik (bayt/dk);
+# altındaki trafik (bildirimler, arka plan yenilemesi) sayılmaz
+USAGE_MIN_BYTES = int(os.environ.get("USAGE_MIN_BYTES", "50000"))
 # VPN sayılan arayüz türleri (show/interface "type")
 VPN_TYPES = {"openvpn", "wireguard", "ipsec", "ike", "l2tp", "pptp", "sstp", "openconnect", "zerotier"}
 # Router günlüğü (show log) okuma aralığı (sn, 0 = kapalı)
@@ -324,10 +331,11 @@ def num(v):
 
 
 class MeshCollector:
-    def __init__(self, client, survey, radio, clients, firmware, security, logs, system, roam, apps, services):
+    def __init__(self, client, survey, radio, clients, firmware, security, logs, system, roam, apps, services, usage):
         self.c = client
         self.apps = apps
         self.services = services
+        self.usage = usage
         self.roam = roam
         self.hosts = []  # son show/ip/hotspot listesi
         self.system = system
@@ -392,6 +400,8 @@ class MeshCollector:
             yield from self._apps()
         if SERVICE_INTERVAL:
             yield from self._services()
+        if USAGE_INTERVAL:
+            yield from self._usage()
         if COLLECT_CLIENTS:
             yield from self._clients(names)
         if SURVEY_INTERFACES:
@@ -797,6 +807,16 @@ class MeshCollector:
             active.add_metric([], n)
         yield active
 
+    def _usage(self):
+        L = ["mac", "name", "group"]
+        secs = CounterMetricFamily("keenetic_client_usage_seconds",
+                                   "Cihazın kategoride trafik yaptığı süre (USAGE_MIN_BYTES/dk üstü dakikalar)", labels=L)
+        byts = CounterMetricFamily("keenetic_client_usage_bytes", "Cihazın kategorideki açık bağlantı trafiği", labels=L)
+        for (mac, name, group), (s, b) in self.usage.snapshot().items():
+            secs.add_metric([mac, name, group], s)
+            byts.add_metric([mac, name, group], b)
+        yield from (secs, byts)
+
     def _services(self):
         L = ["device", "service", "kind"]
         up = GaugeMetricFamily("keenetic_service_up", "Servis / süreç çalışıyor mu (1/0)", labels=L)
@@ -1201,6 +1221,60 @@ class AppWorker(DeviceWorker):
             self.last_t = max((t for t in times if t < newest), default=newest)
 
 
+class UsageWorker(DeviceWorker):
+    """Cihaz başına kategori kullanım süresi. Router'ın uygulama sayacı cihaz başına
+    kırılım vermez; show ntce hosts ise her cihazın açık bağlantılarını uygulamayla
+    birlikte verir (yalnız controller; mesh üyelerinin trafiği de oradan geçer).
+    İki okuma arasında kategorideki bağlantılarda USAGE_MIN_BYTES/dk'dan fazla trafik
+    aktıysa aradaki süre o kategoriye sayılır. Ölçülen ekran süresi değil, trafiğin
+    aktığı süredir; arka planda video oynatma gibi durumlar da sayılır."""
+
+    def __init__(self):
+        super().__init__("usage", USAGE_INTERVAL)
+        self.prev = {}    # (mac, uygulama) -> açık bağlantı baytı
+        self.prev_at = None
+        self.counts = {}  # (mac, ad, grup) -> [sn, bayt]
+
+    def snapshot(self):
+        with self.lock:
+            return {k: tuple(v) for k, v in self.counts.items()}
+
+    def run(self):
+        while True:
+            try:
+                self._poll()
+            except Exception as e:  # opsiyonel veri; bir sonraki turda tekrar
+                log.warning("usage: cihaz trafiği okunamadı: %s", e)
+            time.sleep(self.interval)
+
+    def _poll(self):
+        now = time.time()
+        cur, groups = {}, {}  # groups: (mac, ad, grup) -> bu aralıktaki bayt
+        for h in client(HOST).post("show/ntce/hosts", {}).get("host") or []:
+            mac, info = h.get("mac"), h.get("host") or {}
+            if not mac:
+                continue
+            name = AUTO_NAME_SUFFIX.sub("", info.get("name") or "") or info.get("hostname") or mac
+            for a in h.get("application") or []:
+                key = (mac, a.get("id-num"))
+                b = (num(a.get("rxbytes")) or 0) + (num(a.get("txbytes")) or 0)
+                cur[key] = b
+                # bağlantı kapanıp yenisi açıldıysa sayaç küçülür; yeni bağlantının tamamı sayılır
+                old = self.prev.get(key, 0)
+                group = a.get("group-long") or ""
+                g = (mac, name, APP_GROUPS.get(group, group))
+                groups[g] = groups.get(g, 0) + (b - old if b >= old else b)
+        with self.lock:
+            if self.prev_at is not None:
+                elapsed = min(now - self.prev_at, 2 * self.interval)
+                for g, b in groups.items():
+                    c = self.counts.setdefault(g, [0, 0])
+                    c[1] += b
+                    if b >= USAGE_MIN_BYTES * elapsed / 60:
+                        c[0] += elapsed
+            self.prev, self.prev_at = cur, now
+
+
 class ServiceWorker(DeviceWorker):
     """KeeneticOS servisleri (show processes "object"/"service") ve Entware gibi
     servis olmayan arka plan süreçleri (init'in çocukları, ör. tailscaled)."""
@@ -1400,11 +1474,13 @@ if __name__ == "__main__":
         log.warning("KEENETIC_PASSWORD boş")
     survey, radio, clients, firmware = SurveyWorker(), RadioWorker(), ClientsWorker(), FirmwareWorker()
     security, logs, system, roam = SecurityWorker(), LogWorker(), SystemWorker(), RoamWorker()
-    apps, services = AppWorker(), ServiceWorker()
+    apps, services, usage = AppWorker(), ServiceWorker(), UsageWorker()
     REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, logs, system, roam,
-                                    apps, services))
+                                    apps, services, usage))
     if SERVICE_INTERVAL:
         services.start()
+    if USAGE_INTERVAL:
+        usage.start()
     if APP_INTERVAL:
         apps.start()
     if ROAM_INTERVAL:
