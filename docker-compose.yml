@@ -7,7 +7,7 @@ services:
     network_mode: host
 
   prometheus:
-    image: prom/prometheus:v3.5.0
+    image: prom/prometheus:v3.15.1
     container_name: prometheus
     restart: unless-stopped
     command:
@@ -21,7 +21,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:12.1.0
+    image: grafana/grafana:13.3.0
     container_name: grafana
     restart: unless-stopped
     environment:
