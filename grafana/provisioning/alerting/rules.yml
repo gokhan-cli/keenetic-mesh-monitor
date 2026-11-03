@@ -642,3 +642,36 @@ groups:
               expression: A
               conditions:
                 - evaluator: { type: gt, params: [0] }
+
+      - uid: keenetic-log-new-signature
+        title: Günlükte yeni hata imzası
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: info, notify: once }
+        annotations:
+          summary: "🔎 Yeni hata imzası: {{ .Labels.device }} ({{ .Labels.level }})"
+          description: "{{ .Labels.signature }}"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # Son 30 günde görülmemiş imza. Prometheus geçmişine baktığı için exporter yeniden
+              # başlayınca ya da sürüm değişince tekrarlamaz; sayaçlar yeniyken (ilk gün) susar.
+              expr: >-
+                group by (device, level, signature) (keenetic_log_issue_lines_total{origin="sistem"})
+                unless on(device, level, signature)
+                group by (device, level, signature) (last_over_time(keenetic_log_issue_lines_total[30d] offset 10m))
+                and on(device) group by (device) (last_over_time(keenetic_log_issue_lines_total[1h] offset 1d))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }

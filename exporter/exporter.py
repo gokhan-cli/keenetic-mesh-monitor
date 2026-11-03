@@ -99,6 +99,22 @@ LOG_LINES, LOG_LINES_MAX = 300, 4000
 # Saldıran IP'nin son görülmesinden sonra listede kalma süresi (sn)
 LOG_RETENTION = int(os.environ.get("LOG_RETENTION", "86400"))
 LOG_MAX_IPS = 200
+# Yazılım hatası adayları: günlükteki hata/uyarı satırları değişken kısımları maskelenip imzaya
+# indirilir ve sürüm başına sayılır. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi
+# denemeleri hariç. Etiket sayısı sınırlı kalsın diye en eski imzalar düşürülür.
+LOG_ISSUE_LEVELS = {"E": "hata", "C": "hata", "W": "uyarı"}
+LOG_ISSUE_SKIP = re.compile(r":\s{2,}|Scgi::Handler::GetIndex|lockout-policy|last message repeated")
+LOG_ISSUE_MASKS = [
+    (re.compile(r"\[[^\]]*\bfrom\b[^\]]*\]"), "[..]"),  # oturum bilgisi (kullanıcı, adres)
+    (re.compile(r"\b\w+://\S+"), "<url>"),
+    (re.compile(r"\b\d{1,3}(\.\d{1,3}){3}(/\d+)?\b"), "<ip>"),
+    (re.compile(r"\b([0-9a-f]{2}:){5}[0-9a-f]{2}\b", re.I), "<mac>"),
+    (re.compile(r"(?<![\w:])[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}(/\d+)?", re.I), "<ip6>"),
+    (re.compile(r"\[[0-9a-f]{1,8}\]", re.I), "[id]"),
+    (re.compile(r"\b[0-9a-f]{8,}\b", re.I), "<hex>"),
+    (re.compile(r"0x[0-9a-f]+|\b\d+\b", re.I), "#"),
+]
+LOG_ISSUE_MAX = 300
 # Yönetici girişlerinin metrikte kalma süresi (sn)
 LOG_LOGIN_RETENTION = 3600
 # Taramada controller'ın görünen adı (extender'lar mesh'teki adlarıyla görünür)
@@ -944,7 +960,20 @@ class MeshCollector:
         keys = ("device", "user", "ip", "interface", "client", "scope")
         for lv, at in {tuple(x[k] for k in keys): x["at"] for x in logins}.items():
             login.add_metric(list(lv), at)
-        yield from (seen, bans, bad, info, until, msgs, last, login)
+        L = ["device", "level", "origin", "signature"]
+        issues = CounterMetricFamily("keenetic_log_issue_lines",
+                                     "Sürüm başına günlükteki hata/uyarı satırı (maskelenmiş imza)",
+                                     labels=["device", "version", "level", "origin", "signature"])
+        issue_last = GaugeMetricFamily("keenetic_log_issue_last_seen_seconds",
+                                       "Hata/uyarı imzasının son görüldüğü zaman (unix)", labels=L)
+        seen_at = {}
+        for (device, version, level, origin, signature), n, at in self.logs.issue_snapshot():
+            issues.add_metric([device, version, level, origin, signature], n)
+            key = (device, level, origin, signature)
+            seen_at[key] = max(seen_at.get(key, 0), at)
+        for key, at in seen_at.items():
+            issue_last.add_metric(list(key), at)
+        yield from (seen, bans, bad, info, until, msgs, last, login, issues, issue_last)
 
     # ---------- yazılım sürümleri / güncellemeler ----------
     def _firmware(self):
@@ -1450,6 +1479,7 @@ class LogWorker(DeviceWorker):
         self.devices = {}  # cihaz -> (satır sayısı, son okuma zamanı)
         self.logins = []   # yönetici girişleri (en yeni sonda)
         self.last_id = {}  # cihaz -> işlenen son satır numarası
+        self.issues = {}   # (cihaz, sürüm, düzey, kaynak, imza) -> sayaç
 
     @staticmethod
     def _lines(client, n):
@@ -1486,16 +1516,36 @@ class LogWorker(DeviceWorker):
         new = [x for x in items if last is None or x["id"] > last]
         now = time.time()
         clock = self._clock(client) if new else None
+        version = client.get("show/version").get("release", "") if new else ""
+        # İlk okumadaki geçmiş satırlar sayılmaz: exporter her başladığında sayaçlar şişmesin
+        first = device not in self.last_id
         with self.lock:
             for x in new:
                 try:
-                    self.handle(device, x["message"]["message"], self._time(x["timestamp"], clock, now))
+                    at = self._time(x["timestamp"], clock, now)
+                    self._issue(device, version, x, at, 0 if first else 1)
+                    self.handle(device, x["message"]["message"], at)
                 except Exception as e:
                     log.warning("günlük satırı işlenemedi: %s", e)
             n, _ = self.devices.get(device, (0, 0))
             self.devices[device] = (n + len(new), now)
             if items:
                 self.last_id[device] = items[-1]["id"]
+
+    def _issue(self, device, version, item, at, count):
+        level = LOG_ISSUE_LEVELS.get(item["message"].get("label"))
+        text = item["message"]["message"]
+        if not level or LOG_ISSUE_SKIP.search(text) or f"[{LOGIN}#" in text:
+            return
+        origin = "eklenti" if "Opkg::Manager" in text else "sistem"
+        for mask, repl in LOG_ISSUE_MASKS:
+            text = mask.sub(repl, text)
+        ident = item.get("ident", "")
+        signature = (text if ident == "ndm" else f"{ident}: {text}").strip()[:160]
+        st = self.issues.setdefault((device, version, level, origin, signature),
+                                    {"n": 0, "pending": 0, "last": 0})
+        st["pending"] += count
+        st["last"] = max(st["last"], at)
 
     def _ip(self, device, ip, at):
         st = self.ips.setdefault((device, ip), {"bans": 0, "malicious": 0, "protocol": "",
@@ -1553,6 +1603,18 @@ class LogWorker(DeviceWorker):
             self.logins = [x for x in self.logins if now - x["at"] < LOG_LOGIN_RETENTION]
             return ({k: {**v, "paths": list(v["paths"])} for k, v in self.ips.items()},
                     dict(self.devices), list(self.logins))
+
+    def issue_snapshot(self):
+        """Yeni imza önce 0 olarak yayımlanır, sayısı sonraki toplamada eklenir: Prometheus
+        increase() bir serinin ilk değerini artış saymadığından ilk satırlar kaybolmasın."""
+        with self.lock:
+            if len(self.issues) > LOG_ISSUE_MAX:
+                for key, _ in sorted(self.issues.items(), key=lambda kv: kv[1]["last"])[:-LOG_ISSUE_MAX]:
+                    del self.issues[key]
+            out = [(key, st["n"], st["last"]) for key, st in self.issues.items()]
+            for st in self.issues.values():
+                st["n"], st["pending"] = st["n"] + st["pending"], 0
+            return out
 
     def run(self):
         while True:

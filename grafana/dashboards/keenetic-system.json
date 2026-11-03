@@ -952,6 +952,377 @@
         "showHeader": true,
         "cellHeight": "sm"
       }
+    },
+    {
+      "id": 65,
+      "type": "row",
+      "title": "Yazılım hata adayları",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 66,
+      "type": "table",
+      "title": "Sürüm karşılaştırması (seçili aralıkta)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router günlüğündeki hata ve uyarı satırları, değişken kısımlar (IP, MAC, sayı) maskelenip imzaya indirilerek yazılım sürümü başına sayılır. Saatte = o sürümde çalışılan saat başına satır, sürümleri karşılaştırmak için. Karşılaştırma için aralığı iki sürümü de kapsayacak kadar geniş seçin. Kaynak: eklenti = Entware betikleri, yazılım hatası sayılmaz. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz.",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "sum by (device, version, level, origin, signature) (increase(keenetic_log_issue_lines_total[$__range])) > 0"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "(sum by (device, version, level, origin, signature) (increase(keenetic_log_issue_lines_total[$__range])) > 0) / on(device, version) group_left() (sum by (device, version) (label_replace(count_over_time(keenetic_firmware_info[$__range]), \"version\", \"$1\", \"installed\", \"(.*)\")) * 30 / 3600)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "device": 0,
+              "version": 1,
+              "level": 2,
+              "origin": 3,
+              "signature": 4,
+              "Value #A": 5,
+              "Value #B": 6
+            },
+            "renameByName": {
+              "device": "Cihaz",
+              "version": "Sürüm",
+              "level": "Düzey",
+              "origin": "Kaynak",
+              "signature": "İmza",
+              "Value #A": "Satır",
+              "Value #B": "Saatte"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Satır",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Satır"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Saatte"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sürüm"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Düzey"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kaynak"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 67,
+      "type": "timeseries",
+      "title": "Sistem kaynaklı hata ve uyarılar (saatlik)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Eklenti (Entware) kaynaklılar hariç. Sıçrama hangi imzadan geliyorsa yukarıdaki tablodan bakın.",
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (device, level) (increase(keenetic_log_issue_lines_total{origin=\"sistem\"}[1h]))",
+          "legendFormat": "{{device}} · {{level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 68,
+      "type": "table",
+      "title": "İmzaların son görülmesi",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Router'ın tuttuğu geçmişten okunan imzalar da burada görünür; sayaç ise yalnız exporter çalışırken gelen satırları sayar.",
+      "gridPos": {
+        "x": 12,
+        "y": 53,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "expr": "max by (device, level, origin, signature) (keenetic_log_issue_last_seen_seconds) * 1000"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "Value": 0,
+              "device": 1,
+              "level": 2,
+              "origin": 3,
+              "signature": 4
+            },
+            "renameByName": {
+              "device": "Cihaz",
+              "version": "Sürüm",
+              "level": "Düzey",
+              "origin": "Kaynak",
+              "signature": "İmza",
+              "Value": "Son görülme"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Son görülme",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Son görülme"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cihaz"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Düzey"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kaynak"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
     }
   ],
   "links": [
