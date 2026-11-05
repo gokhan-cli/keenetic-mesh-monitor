@@ -974,7 +974,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Router günlüğündeki hata ve uyarı satırları, değişken kısımlar (IP, MAC, sayı) maskelenip imzaya indirilerek yazılım sürümü başına sayılır. Saatte = o sürümde çalışılan saat başına satır, sürümleri karşılaştırmak için. Karşılaştırma için aralığı iki sürümü de kapsayacak kadar geniş seçin. Kaynak: eklenti = Entware betikleri, yazılım hatası sayılmaz. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz.",
+      "description": "Router günlüğündeki hata ve uyarı satırları, değişken kısımlar (IP, MAC, sayı) maskelenip imzaya indirilerek yazılım sürümü başına sayılır. Saatte = o sürümde çalışılan saat başına satır, sürümleri karşılaştırmak için. Karşılaştırma için aralığı iki sürümü de kapsayacak kadar geniş seçin. Kaynak: eklenti = Entware betikleri, yazılım hatası sayılmaz; açılış = cihaz açıldıktan sonraki ilk 5 dakika, çoğu olağan açılış mesajıdır ve uyarı üretmez. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz.",
       "gridPos": {
         "x": 0,
         "y": 43,
@@ -1150,7 +1150,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Eklenti (Entware) kaynaklılar hariç. Sıçrama hangi imzadan geliyorsa yukarıdaki tablodan bakın.",
+      "description": "Eklenti (Entware) kaynaklılar ve açılışın ilk 5 dakikası hariç. Sıçrama hangi imzadan geliyorsa yukarıdaki tablodan bakın.",
       "gridPos": {
         "x": 0,
         "y": 53,

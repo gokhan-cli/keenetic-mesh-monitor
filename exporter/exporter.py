@@ -111,10 +111,14 @@ LOG_ISSUE_MASKS = [
     (re.compile(r"\b([0-9a-f]{2}:){5}[0-9a-f]{2}\b", re.I), "<mac>"),
     (re.compile(r"(?<![\w:])[0-9a-f]{0,4}(:[0-9a-f]{0,4}){2,7}(/\d+)?", re.I), "<ip6>"),
     (re.compile(r"\[[0-9a-f]{1,8}\]", re.I), "[id]"),
+    (re.compile(r"^[0-9A-F]{3,8}:(?=\s)"), "<id>:"),  # https-dns-proxy istek kimliği
     (re.compile(r"\b[0-9a-f]{8,}\b", re.I), "<hex>"),
     (re.compile(r"0x[0-9a-f]+|\b\d+\b", re.I), "#"),
 ]
 LOG_ISSUE_MAX = 300
+# Cihaz açıldıktan sonraki bu süre (sn) içindeki satırlar "açılış" kaynağıyla sayılır, uyarı üretmez:
+# çekirdek açılışta olağan bilgileri uyarı düzeyinde yazar, internet gelene kadar VPN'ler hata verir
+LOG_ISSUE_BOOT = 300
 # Yönetici girişlerinin metrikte kalma süresi (sn)
 LOG_LOGIN_RETENTION = 3600
 # Taramada controller'ın görünen adı (extender'lar mesh'teki adlarıyla görünür)
@@ -1517,13 +1521,14 @@ class LogWorker(DeviceWorker):
         now = time.time()
         clock = self._clock(client) if new else None
         version = client.get("show/version").get("release", "") if new else ""
+        boot = now - int(client.get("show/system").get("uptime", 0)) if new else 0
         # İlk okumadaki geçmiş satırlar sayılmaz: exporter her başladığında sayaçlar şişmesin
         first = device not in self.last_id
         with self.lock:
             for x in new:
                 try:
                     at = self._time(x["timestamp"], clock, now)
-                    self._issue(device, version, x, at, 0 if first else 1)
+                    self._issue(device, version, x, at, 0 if first else 1, at < boot + LOG_ISSUE_BOOT)
                     self.handle(device, x["message"]["message"], at)
                 except Exception as e:
                     log.warning("günlük satırı işlenemedi: %s", e)
@@ -1532,12 +1537,12 @@ class LogWorker(DeviceWorker):
             if items:
                 self.last_id[device] = items[-1]["id"]
 
-    def _issue(self, device, version, item, at, count):
+    def _issue(self, device, version, item, at, count, booting):
         level = LOG_ISSUE_LEVELS.get(item["message"].get("label"))
         text = item["message"]["message"]
         if not level or LOG_ISSUE_SKIP.search(text) or f"[{LOGIN}#" in text:
             return
-        origin = "eklenti" if "Opkg::Manager" in text else "sistem"
+        origin = "eklenti" if "Opkg::Manager" in text else "açılış" if booting else "sistem"
         for mask, repl in LOG_ISSUE_MASKS:
             text = mask.sub(repl, text)
         ident = item.get("ident", "")

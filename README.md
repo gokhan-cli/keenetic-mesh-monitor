@@ -112,7 +112,7 @@ scrape_configs:
 | `keenetic_client_usage_today_seconds` | Kategori başına bugünkü kullanım (sn); router saatiyle gece yarısı sıfırlanır. Exporter'da tutulur, yeniden başlayınca o günün sayımı sıfırdan başlar |
 | `keenetic_admin_login_seconds` | Router günlüğünden yönetici girişleri (zaman; kullanıcı, IP, arayüz, tarayıcı, `scope` = internet / yerel / bulut). Exporter'ın kendi kullanıcısı ve router'ın iç oturumları hariç; exporter'da 1 saat tutulur |
 | `keenetic_log_lines_total` / `keenetic_log_read_seconds` | Cihaz başına router günlüğünden okunan satır ve son okuma zamanı |
-| `keenetic_log_issue_lines_total` / `keenetic_log_issue_last_seen_seconds` | Günlükteki hata/uyarı satırları: IP, MAC ve sayılar maskelenmiş imza başına, yazılım sürümüyle (`version`, `level`, `origin` = sistem / eklenti) |
+| `keenetic_log_issue_lines_total` / `keenetic_log_issue_last_seen_seconds` | Günlükteki hata/uyarı satırları: IP, MAC ve sayılar maskelenmiş imza başına, yazılım sürümüyle (`version`, `level`, `origin` = sistem / açılış / eklenti) |
 
 ## Router günlüğü
 
@@ -125,7 +125,7 @@ router'da syslog ya da başka bir ayar gerekmez. Yalnız yeni satırlar işlenir
 
 **Güvenlik** dashboard'undaki **Saldıran IP'ler** ve **Yönetici girişleri** tabloları, Telegram'da IP'li "IP engellendi" ve "Yönetici girişi" uyarıları bunlardan gelir.
 Router son yaklaşık 4000 satırı (bir gün kadar) tutar; exporter açılırken bunları da okuduğu için yeniden başlayınca liste kaybolmaz.
-Ayrıca hata (`E`, `C`) ve uyarı (`W`) düzeyindeki satırlar yazılım hatası adayı olarak imzaya indirilip sürüm başına sayılır. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz. Sayaç yalnız exporter çalışırken gelen satırları kapsar; exporter başlarken okunan geçmiş sayılmaz. Karşılaştırma **Sistem ve yazılım → Yazılım hata adayları** bölümündedir; son 30 günde görülmemiş sistem kaynaklı bir imza çıkınca Telegram uyarısı gelir (ilk gün sessizdir). İmzalar kişisel veri içerebilir, başkasıyla paylaşmadan önce kontrol edin.
+Ayrıca hata (`E`, `C`) ve uyarı (`W`) düzeyindeki satırlar yazılım hatası adayı olarak imzaya indirilip sürüm başına sayılır. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz. Sayaç yalnız exporter çalışırken gelen satırları kapsar; exporter başlarken okunan geçmiş sayılmaz. Karşılaştırma **Sistem ve yazılım → Yazılım hata adayları** bölümündedir; son 30 günde görülmemiş sistem kaynaklı bir imza çıkınca Telegram uyarısı gelir (ilk gün sessizdir). Cihaz açıldıktan sonraki ilk 5 dakikanın satırları `açılış` kaynağıyla sayılır ve uyarı üretmez. İmzalar kişisel veri içerebilir, başkasıyla paylaşmadan önce kontrol edin.
 
 Kapatmak için `LOG_INTERVAL=0`. Önceki sürümlerde kullanılan uzak syslog ayarı artık gerekmez, router'dan kaldırılabilir.
 

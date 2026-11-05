@@ -660,12 +660,12 @@ groups:
             model:
               refId: A
               instant: true
-              # Son 30 günde görülmemiş imza. Prometheus geçmişine baktığı için exporter yeniden
+              # Açılış dışında son 30 günde görülmemiş imza. Prometheus geçmişine baktığı için exporter yeniden
               # başlayınca ya da sürüm değişince tekrarlamaz; sayaçlar yeniyken (ilk gün) susar.
               expr: >-
                 group by (device, level, signature) (keenetic_log_issue_lines_total{origin="sistem"})
                 unless on(device, level, signature)
-                group by (device, level, signature) (last_over_time(keenetic_log_issue_lines_total[30d] offset 10m))
+                group by (device, level, signature) (last_over_time(keenetic_log_issue_lines_total{origin="sistem"}[30d] offset 10m))
                 and on(device) group by (device) (last_over_time(keenetic_log_issue_lines_total[1h] offset 1d))
           - refId: B
             datasourceUid: __expr__
