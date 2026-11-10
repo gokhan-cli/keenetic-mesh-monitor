@@ -296,6 +296,41 @@ groups:
               conditions:
                 - evaluator: { type: gt, params: [0] }
 
+      - uid: keenetic-reach-operator-down
+        title: Operatöre erişilemiyor
+        condition: B
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "🟠 {{ .Labels.operator }} ağına erişilemiyor"
+          description: "İnternet açık, başka operatörlere erişim var; ama {{ .Labels.operator }} ağındaki hedefler 3 dakikadır yanıt vermiyor. Sorun büyük olasılıkla operatörler arası bağlantıda; bu ağdaki VPN sunucuları ve siteler etkilenir.{{ if .Labels.stop }}\nYolun kesildiği yer: {{ .Labels.stop }}\nYol: {{ .Labels.path }}{{ end }}"
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # İnternet tümden yoksa uyarı gelmez (İnternet bağlantısı yok uyarısı var).
+              # Exporter'ın kesinti başında aldığı traceroute özeti etiket olarak eklenir.
+              expr: |
+                (
+                  ((keenetic_reach_operator_up == 0) + 1 and on() (count(keenetic_reach_operator_up == 1) > 0))
+                  * on(operator) group_left(stop, path) (keenetic_reach_outage_seconds{ended="sürüyor"} * 0 + 1)
+                )
+                or on(operator)
+                ((keenetic_reach_operator_up == 0) + 1 and on() (count(keenetic_reach_operator_up == 1) > 0))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
       - uid: keenetic-radio-hot
         title: Radyo sıcaklığı yüksek
         condition: B

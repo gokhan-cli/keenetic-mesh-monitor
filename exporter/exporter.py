@@ -14,6 +14,9 @@ Kaynaklar:
   /rci/show/mws/log      -> mesh dolaşım günlüğü (istemci geçişleri, bağlanma/ayrılma)
   /rci/show/ntce/hosts   -> cihaz başına açık bağlantılar ve uygulamaları (kategori kullanım süresi)
   /rci/show/log          -> router günlüğü: engellenen IP'ler, kötü niyetli istekler, yönetici girişleri
+
+Ayrıca exporter'ın kendisi farklı operatörlerdeki hedeflere ping/TCP ile bağlanır; bir operatöre
+ulaşılamazsa traceroute ile yolun kesildiği yeri kaydeder (ReachWorker).
 """
 import base64
 import calendar
@@ -24,8 +27,12 @@ import json
 import logging
 import os
 import re
+import select
+import socket
+import struct
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import requests
@@ -121,6 +128,24 @@ LOG_ISSUE_MAX = 300
 LOG_ISSUE_BOOT = 300
 # Yönetici girişlerinin metrikte kalma süresi (sn)
 LOG_LOGIN_RETENTION = 3600
+# Operatör erişimi: "Operatör=tcp:ad:port" ya da "Operatör=icmp:adres", virgülle ayrılır. icmp için
+# exporter kullanıcısının grubu net.ipv4.ping_group_range içinde olmalı; değilse o hedef atlanır.
+# Hedefler VPN'lerin yayınladığı rotalara düşmemeli, yoksa VPN'in kendisi denetlenmiş olur.
+# Bir operatörün tüm hedefleri art arda REACH_FAILS turda yanıt vermezse o operatör kesik sayılır
+# ve hedefine traceroute yapılır. Boş bırakılırsa denetim kapanır.
+REACH_TARGETS = os.environ.get("REACH_TARGETS", ",".join([
+    "Türk Telekom=tcp:www.turktelekom.com.tr:443", "Türk Telekom=tcp:onlineislemler.turktelekom.com.tr:443",
+    "Superonline=tcp:www.superonline.net:443", "Superonline=tcp:www.turkcell.com.tr:443",
+    "Vodafone=tcp:www.vodafone.com.tr:443", "Vodafone=tcp:www.vodafone.net.tr:443",
+    "Türksat=tcp:www.turksat.com.tr:443", "Türksat=tcp:www.turkiye.gov.tr:443",
+    "Yurt dışı=tcp:1.1.1.1:443", "Yurt dışı=tcp:8.8.8.8:443", "Yurt dışı=tcp:9.9.9.9:443",
+]))
+REACH_INTERVAL = int(os.environ.get("REACH_INTERVAL", "30"))
+REACH_FAILS = 2
+REACH_TIMEOUT = 3.0
+REACH_HOPS = 20
+REACH_HISTORY = 30  # metrikte tutulan son kesinti sayısı
+
 # Taramada controller'ın görünen adı (extender'lar mesh'teki adlarıyla görünür)
 CONTROLLER_NAME = os.environ.get("CONTROLLER_NAME", "Ana router")
 # Başarısız girişten sonra yeniden deneme süresi (sn)
@@ -1649,6 +1674,242 @@ class RadioWorker(DeviceWorker):
         return radios
 
 
+def icmp_ping(ip, timeout):
+    """Yetkisiz ICMP echo (SOCK_DGRAM; net.ipv4.ping_group_range kullanıcının grubunu içermeli).
+    Yanıt süresi (sn) ya da None."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP) as s:
+        s.settimeout(timeout)
+        t0 = time.time()
+        s.sendto(struct.pack("!BBHHH", 8, 0, 0, 0, 1) + b"keenetic", (ip, 0))
+        while time.time() - t0 < timeout:
+            try:
+                data = s.recv(256)
+            except socket.timeout:
+                return None
+            if data and data[0] == 0:  # echo reply
+                return time.time() - t0
+    return None
+
+
+def tcp_connect(ip, port, timeout):
+    t0 = time.time()
+    try:
+        with socket.create_connection((ip, port), timeout=timeout):
+            return time.time() - t0
+    except OSError:
+        return None
+
+
+def traceroute(ip, hops=REACH_HOPS, wait=1.0):
+    """Yetkisiz UDP traceroute: TTL'i artan paketlere gelen ICMP "süre aşıldı" yanıtları
+    IP_RECVERR hata kuyruğundan okunur. [(durak, adres ya da None)] döner."""
+    out = []
+    for ttl in range(1, hops + 1):
+        hop = None
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+            s.setsockopt(socket.IPPROTO_IP, 11, 1)  # IP_RECVERR
+            t0 = time.time()
+            try:
+                s.sendto(b"keenetic", (ip, 33434 + ttl))
+            except OSError:
+                out.append((ttl, None))
+                break
+            while hop is None and time.time() - t0 < wait:
+                r, _, x = select.select([s], [], [s], wait - (time.time() - t0))
+                if not (r or x):
+                    break
+                try:
+                    _, anc, _, _ = s.recvmsg(512, 512, socket.MSG_ERRQUEUE)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    break
+                for lvl, typ, d in anc:
+                    if lvl == socket.IPPROTO_IP and typ == 11 and len(d) >= 24:
+                        hop = (socket.inet_ntoa(d[20:24]), d[5])  # yanıtlayan adres, ICMP türü
+        out.append((ttl, hop[0] if hop else None))
+        if hop and (hop[1] == 3 or hop[0] == ip):  # hedefe ulaşıldı
+            break
+    while out and out[-1][1] is None and len(out) > 1 and out[-2][1] is None:
+        out.pop()  # sondaki yanıtsız durakları kısalt (bir tane kalır)
+    return out
+
+
+def asn_names(ips):
+    """Team Cymru whois ile adres -> "AS12735 TURKNET" (bulunamazsa boş)."""
+    public = [i for i in ips if ipaddress.ip_address(i).is_global]
+    if not public:
+        return {}
+    try:
+        with socket.create_connection(("whois.cymru.com", 43), timeout=5) as s:
+            s.sendall(("begin\nverbose\n" + "\n".join(public) + "\nend\n").encode())
+            data = b""
+            while chunk := s.recv(4096):
+                data += chunk
+    except OSError as e:
+        log.info("erişim: AS bilgisi alınamadı: %s", e)
+        return {}
+    names = {}
+    for line in data.decode(errors="replace").splitlines():
+        f = [x.strip() for x in line.split("|")]
+        if len(f) >= 7 and f[0].isdigit():
+            name = re.sub(r"^AS(?=[A-Za-z])", "", f[6].split(",")[0].split(" ")[0]).split("-AS")[0]
+            names[f[1]] = f"AS{f[0]} {name}"
+    return names
+
+
+class ReachWorker(threading.Thread):
+    """Farklı operatörlerdeki hedeflere erişimi denetler. Bir operatörün tüm hedefleri yanıt
+    vermezken başka bir operatöre erişim varsa (internet açık) sorun operatörler arasındadır;
+    o anda traceroute ile yolun nerede kesildiği kaydedilir."""
+
+    def __init__(self, spec):
+        super().__init__(daemon=True, name="reach")
+        self.targets = []  # (operatör, yöntem, adres, port)
+        for item in filter(None, (x.strip() for x in spec.split(","))):
+            op, _, rest = item.partition("=")
+            method, _, addr = rest.partition(":")
+            port = None
+            if method == "tcp":
+                addr, _, port = addr.rpartition(":")
+                port = int(port)
+            if method not in ("icmp", "tcp") or not op or not addr:
+                log.warning("erişim: hedef anlaşılamadı: %s", item)
+                continue
+            self.targets.append((op.strip(), method, addr, port))
+        self.lock = threading.Lock()
+        self.results = {}  # (operatör, hedef) -> rtt ya da None
+        self.fails = {}  # operatör -> art arda başarısız tur
+        self.down = {}  # operatör -> (başlangıç, saat farkı, yol özeti, yol)
+        self.history = []  # (operatör, başlangıç, bitiş, saat farkı, özet, yol)
+        self.ips = {}  # (operatör, hedef) -> son çözülen adres
+        self.skip = set()  # izin olmadığı için atlanan hedefler
+
+    @staticmethod
+    def label(method, addr, port):
+        return f"{addr}:{port}" if method == "tcp" else addr
+
+    def probe(self, target):
+        op, method, addr, port = target
+        key = (op, self.label(method, addr, port))
+        try:
+            ip = socket.gethostbyname(addr)
+            self.ips[key] = ip
+        except OSError:
+            return key, None
+        for _ in range(2):
+            try:
+                rtt = icmp_ping(ip, REACH_TIMEOUT) if method == "icmp" else tcp_connect(ip, port, REACH_TIMEOUT)
+            except PermissionError:
+                log.warning("erişim: %s atlandı: yetkisiz ping kapalı (net.ipv4.ping_group_range)", key[1])
+                self.skip.add(target)
+                return key, None
+            except OSError as e:
+                log.warning("erişim: %s denenemedi: %s", key[1], e)
+                return key, None
+            if rtt is not None:
+                return key, rtt
+        return key, None
+
+    def trace(self, op):
+        """Operatörün ilk hedefine traceroute; (kesildiği yer, yol) metinleri."""
+        ip = next((v for (o, _), v in self.ips.items() if o == op), None)
+        if not ip:
+            return "hedef adı çözülemedi", ""
+        hops = traceroute(ip)
+        names = asn_names([h for _, h in hops if h])
+        parts, last = [], None
+        for ttl, h in hops:
+            if h is None:
+                if not parts or parts[-1] != "*":
+                    parts.append("*")
+                continue
+            last = (ttl, h)
+            if ttl == 1 and ipaddress.ip_address(h).is_private:
+                parts.append("router")
+            else:
+                parts.append(f"{h} ({names[h]})" if h in names else h)
+        path = " → ".join(parts)
+        if not last:
+            stop = "router'dan sonra hiçbir durak yanıt vermedi"
+        elif last[1] == ip:
+            stop = "hedefe ulaşıldı (yalnız denenen bağlantı noktası yanıt vermiyor)"
+        else:
+            stop = f"{last[0]}. durak {last[1]}" + (f" ({names[last[1]]})" if last[1] in names else "") + " sonrası"
+        log.warning("erişim: %s kesik; yol kesildiği yer: %s; yol: %s", op, stop, path)
+        return stop, path
+
+    def run(self):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            while True:
+                ops = list(dict.fromkeys(t[0] for t in self.targets if t not in self.skip))
+                targets = [t for t in self.targets if t not in self.skip]
+                results = {k: v for k, v in pool.map(self.probe, targets)
+                           if not any(k == (t[0], self.label(*t[1:])) for t in self.skip)}
+                ok = {op: any(r is not None for (o, _), r in results.items() if o == op) for op in ops}
+                for op in ops:
+                    self.fails[op] = 0 if ok[op] else self.fails.get(op, 0) + 1
+                internet = any(ok.values())
+                now = time.time()
+                for op in ops:
+                    if self.fails[op] >= REACH_FAILS and op not in self.down:
+                        try:
+                            offset = LogWorker._clock(client(HOST))[0]
+                        except Exception:
+                            offset = 0
+                        # İnternet tümden yoksa traceroute anlamsız; internet kesintisi ayrıca izleniyor
+                        stop, path = self.trace(op) if internet else ("internet bağlantısı yok", "")
+                        with self.lock:
+                            self.down[op] = (now - REACH_INTERVAL * (REACH_FAILS - 1), offset, stop, path)
+                    elif ok[op] and op in self.down:
+                        start, offset, stop, path = self.down[op]
+                        log.info("erişim: %s yeniden erişilebilir (%s)", op, MeshCollector._minutes(now - start))
+                        with self.lock:
+                            del self.down[op]
+                            self.history = (self.history + [(op, start, now, offset, stop, path)])[-REACH_HISTORY:]
+                with self.lock:
+                    self.results = results
+                time.sleep(REACH_INTERVAL)
+
+
+class ReachCollector:
+    def __init__(self, worker):
+        self.w = worker
+
+    def collect(self):
+        w = self.w
+        with w.lock:
+            results, down, history = dict(w.results), dict(w.down), list(w.history)
+        up = GaugeMetricFamily("keenetic_reach_up", "Hedefe erişim (1/0)", labels=["operator", "target"])
+        rtt = GaugeMetricFamily("keenetic_reach_rtt_seconds", "Hedefin yanıt süresi (ping ya da TCP bağlantısı)",
+                                labels=["operator", "target"])
+        opup = GaugeMetricFamily("keenetic_reach_operator_up",
+                                 "Operatöre erişim: hedeflerinden en az biri yanıt veriyor mu (1/0)", labels=["operator"])
+        ops = {}
+        for (op, target), r in results.items():
+            up.add_metric([op, target], 0 if r is None else 1)
+            if r is not None:
+                rtt.add_metric([op, target], r)
+            ops[op] = ops.get(op, False) or r is not None
+        for op in ops:
+            opup.add_metric([op], 0 if op in down else 1)
+        out = GaugeMetricFamily("keenetic_reach_outage_seconds",
+                                "Operatöre erişim kesintisi; başlangıç/bitiş router saatiyle, yolun kesildiği yer "
+                                "ve traceroute (son kesintiler)",
+                                labels=["operator", "started", "ended", "text", "stop", "path"])
+        fmt = lambda t, off: time.strftime("%Y-%m-%d %H:%M", time.gmtime(t + off))
+        now = time.time()
+        for op, start, end, off, stop, path in history:
+            ended = fmt(end, off)
+            same_day = ended[:10] == fmt(start, off)[:10]
+            out.add_metric([op, fmt(start, off), ended[11:] if same_day else ended,
+                            MeshCollector._minutes(end - start), stop, path], end - start)
+        for op, (start, off, stop, path) in down.items():
+            out.add_metric([op, fmt(start, off), "sürüyor", "", stop, path], now - start)
+        yield from (up, rtt, opup, out)
+
+
 if __name__ == "__main__":
     if not PASSWORD:
         log.warning("KEENETIC_PASSWORD boş")
@@ -1657,6 +1918,10 @@ if __name__ == "__main__":
     apps, services, usage = AppWorker(), ServiceWorker(), UsageWorker()
     REGISTRY.register(MeshCollector(client(HOST), survey, radio, clients, firmware, security, logs, system, roam,
                                     apps, services, usage))
+    if REACH_TARGETS.strip() and REACH_INTERVAL:
+        reach = ReachWorker(REACH_TARGETS)
+        REGISTRY.register(ReachCollector(reach))
+        reach.start()
     if SERVICE_INTERVAL:
         services.start()
     if USAGE_INTERVAL:

@@ -98,6 +98,8 @@ scrape_configs:
 | `keenetic_wan_*` | İnternete çıkan arayüz (PPPoE vb.): bağlı mı, oturum süresi, alınan/gönderilen bayt, hata ve düşen paket sayaçları. `interface` etiketi router'daki görünen addır (`interface PPPoE1 rename PPPoE0` ile değiştirildiyse PPPoE0); VPN ve ping kontrolünde de aynı |
 | `keenetic_pingcheck_pass` / `_failures` | Router'ın ping kontrolü profilleri |
 | `keenetic_vpn_enabled` / `_up` / `_uptime_seconds` | VPN tünelleri (OpenVPN, WireGuard, IPsec, L2TP, PPTP, SSTP…): ayarda açık mı, bağlı mı, bağlı kalma süresi |
+| `keenetic_reach_up` / `_rtt_seconds` / `_operator_up` | Farklı operatörlerdeki hedeflere erişim ve yanıt süresi (`operator`, `target`); operatörün hedeflerinden biri yanıt veriyorsa `_operator_up` = 1. Bkz. [Operatör erişimi](#operatör-erişimi) |
+| `keenetic_reach_outage_seconds` | Operatöre erişim kesintileri (son 30): `started` / `ended` router saatiyle, `stop` = traceroute'ta yanıt veren son durak ve sahibi (AS), `path` = yol. Devam edende `ended="sürüyor"`; exporter yeniden başlayınca liste boşalır |
 | `keenetic_system_*` | Cihaz başına (controller ve node'lar) CPU yükü, bellek ve açık kalma süresi |
 | `keenetic_client_receive_bytes_total` / `_transmit_bytes_total` | Cihaz başına router üzerinden indirilen / yüklenen bayt (internet ve VPN; yerel ağ içi trafik dahil değil). Router açıldığından beri birikir; yalnız router'da kayıtlı cihazlar için tutulur |
 | `keenetic_application_receive_bytes_total` / `_transmit_bytes_total` | Uygulama başına indirilen / yüklenen bayt, tüm cihazlar (`app`, `group` etiketleri; kayıtsız cihazlar dahil). Exporter açıldıktan sonrası |
@@ -128,6 +130,20 @@ Router son yaklaşık 4000 satırı (bir gün kadar) tutar; exporter açılırke
 Ayrıca hata (`E`, `C`) ve uyarı (`W`) düzeyindeki satırlar yazılım hatası adayı olarak imzaya indirilip sürüm başına sayılır. Saldırı istekleri, backtrace kareleri ve exporter'ın kendi denemeleri sayılmaz. Sayaç yalnız exporter çalışırken gelen satırları kapsar; exporter başlarken okunan geçmiş sayılmaz. Karşılaştırma **Sistem ve yazılım → Yazılım hata adayları** bölümündedir; son 30 günde görülmemiş sistem kaynaklı bir imza çıkınca Telegram uyarısı gelir (ilk gün sessizdir). Cihaz açıldıktan sonraki ilk 5 dakikanın satırları `açılış` kaynağıyla sayılır ve uyarı üretmez. İmzalar kişisel veri içerebilir, başkasıyla paylaşmadan önce kontrol edin.
 
 Kapatmak için `LOG_INTERVAL=0`. Önceki sürümlerde kullanılan uzak syslog ayarı artık gerekmez, router'dan kaldırılabilir.
+
+## Operatör erişimi
+
+İnternet açıkken yalnız bir operatörün ağına (ör. Superonline ya da Türk Telekom) ulaşılamaması, sağlayıcılar arasındaki
+bağlantı arızasıdır: o ağdaki VPN sunucuları ve siteler çalışmaz, diğerleri çalışır. Exporter bunu yakalamak için 30 sn'de bir
+her operatörden iki siteye TCP bağlantısı açar (Türk Telekom, Superonline, Vodafone, Türksat ve yurt dışı için 1.1.1.1,
+8.8.8.8, 9.9.9.9). Bir operatörün tüm hedefleri iki tur yanıt vermezse, internet açıksa o operatörün ilk hedefine traceroute
+yapar ve yanıt veren son durağı ağ sahibiyle (AS, Team Cymru whois) kaydeder. Son durak kendi sağlayıcınızdaysa sorun
+sağlayıcınızın o operatöre bağlantısındadır, karşı operatörün ağındaysa onun tarafındadır.
+
+Durum ve kesintiler **Genel bakış → İnternet ve VPN** bölümündedir; 3 dk süren kesintide Telegram uyarısı gelir.
+Hedefler `REACH_TARGETS` ile değiştirilebilir (`Operatör=tcp:ad:port`, virgülle ayrılır; `icmp:adres` yalnız exporter
+kullanıcısının grubu `net.ipv4.ping_group_range` içindeyse çalışır). Hedefler VPN'lerin yayınladığı rotalara düşmemeli, yoksa
+VPN'in kendisi denetlenir. Kapatmak için `REACH_INTERVAL=0`.
 
 ## Telegram uyarıları
 
@@ -163,6 +179,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | 🟠 İnternet bağlantısı yeniden kuruldu | WAN (PPPoE) oturum süresi son 10 dk'da sıfırlandıysa |
 | 🟠 Yeniden başladı | Bir cihazın açık kalma süresi son 10 dk'da sıfırlandıysa |
 | 🔴 VPN bağlantısı koptu | Ayarda açık bir tünel 3 dk boyunca bağlı değilse (kapalı tüneller uyarı üretmez) |
+| 🟠 Operatöre erişilemiyor | İnternet açıkken bir operatörün tüm hedefleri 3 dk yanıt vermezse; mesajda traceroute'ta yolun kesildiği yer ve yol bulunur ([Operatör erişimi](#operatör-erişimi)) |
 | 🟠 Radyo ısınıyor | Bir Wi-Fi radyosu 15 dk boyunca 80 °C üzerindeyse (normalde 50–65 °C) |
 | 🏠 Eve geldi | Önceki 4 saatte hiç görülmeyen bir Wi-Fi cihazı ağa bağlanınca, tek mesaj ("Düzeldi" gelmez). Kablolu cihazlar dahil değil; exporter ya da router o 4 saatte çoğunlukla kapalıysa uyarı üretmez |
 | 🔴 Servis durdu | Son 1 saatte çalışan, ayarlarda açık bir servis (arayüzden kapattıklarınız hariç) 3 dk durursa ya da servis olmayan bir süreç (ör. tailscaled) kaybolursa. VPN, PPPoE (kendi uyarıları var) ve isteğe bağlı çalışanlar (iperf3, LLDP) hariç |

@@ -1449,7 +1449,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 44,
         "w": 24,
         "h": 1
       },
@@ -1465,7 +1465,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 45,
         "w": 10,
         "h": 10
       },
@@ -1618,7 +1618,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 37,
+        "y": 45,
         "w": 14,
         "h": 10
       },
@@ -1670,7 +1670,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 55,
         "w": 24,
         "h": 1
       },
@@ -1686,7 +1686,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 56,
         "w": 10,
         "h": 10
       },
@@ -1853,7 +1853,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 48,
+        "y": 56,
         "w": 14,
         "h": 10
       },
@@ -1909,7 +1909,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 66,
         "w": 10,
         "h": 9
       },
@@ -1964,7 +1964,7 @@
       },
       "gridPos": {
         "x": 10,
-        "y": 58,
+        "y": 66,
         "w": 14,
         "h": 9
       },
@@ -2187,6 +2187,240 @@
         "tooltip": {
           "mode": "single"
         }
+      }
+    },
+    {
+      "id": 71,
+      "type": "state-timeline",
+      "title": "Operatörlere erişim",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Exporter 30 sn'de bir farklı operatörlerdeki sitelere bağlanmayı dener. Bir operatörün tüm hedefleri iki tur yanıt vermezse o operatör erişilemez sayılır. İnternet açıkken tek bir operatör kırmızıysa sorun operatörler arası bağlantıdadır; o ağdaki VPN sunucuları ve siteler etkilenir. 3 dk sürerse Telegram uyarısı gelir.",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "keenetic_reach_operator_up",
+          "legendFormat": "{{operator}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Erişiliyor",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Erişilemiyor",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 72,
+      "type": "table",
+      "title": "Operatör erişim kesintileri (seçili aralık)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Bir operatöre erişilemeyen aralıklar, router saatiyle. Kesinti başında exporter traceroute yapar: 'Kesildiği yer' yanıt veren son duraktır, parantez içinde ağın sahibi (AS). Son durak kendi sağlayıcınızdaysa sorun sağlayıcınızın o operatöre bağlantısında, karşı operatörün ağındaysa onun tarafındadır. Exporter yeniden başlayınca liste sıfırlanır.",
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "max by (operator, started, ended, text, stop, path) (max_over_time(keenetic_reach_outage_seconds{ended!=\"sürüyor\"}[$__range])) or max by (operator, started, ended, text, stop, path) (keenetic_reach_outage_seconds{ended=\"sürüyor\"})"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "operator": 0,
+              "started": 1,
+              "ended": 2,
+              "text": 3,
+              "stop": 4,
+              "path": 5
+            },
+            "renameByName": {
+              "operator": "Operatör",
+              "started": "Başlangıç",
+              "ended": "Bitiş",
+              "text": "Süre",
+              "stop": "Kesildiği yer",
+              "path": "Yol"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Başlangıç",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bitiş"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "sürüyor": {
+                        "text": "Sürüyor",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Operatör"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Başlangıç"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 135
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bitiş"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Süre"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
       }
     }
   ],
