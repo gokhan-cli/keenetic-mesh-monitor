@@ -165,7 +165,7 @@ Token boşsa ya da ayarlar hatalıysa Grafana açılmaz (`docker logs grafana` i
 | Uyarı | Koşul |
 |---|---|
 | 🔴 Router'a erişilemiyor | Exporter 5 dk boyunca controller'dan veri alamazsa (`keenetic_up`) ya da exporter'ın kendisi çalışmıyorsa |
-| 🔴 Mesh üyesi kayboldu | Son 1 saatte görülen bir üye listeden çıkarsa ya da internete erişemezse (3 dk) |
+| 🔴 Mesh üyesi kayboldu | Son 1 saatte görülen bir üye listeden çıkarsa ya da controller'ın interneti varken üye internete erişemezse (3 dk). Üyeler internet durumunu controller'dan alır; controller'ın interneti yokken yalnız "İnternet bağlantısı yok" gelir |
 | 🟠 Mesh bağlantısı yeniden kuruldu | `keenetic_mesh_backhaul_uptime_seconds` son 10 dk'da sıfırlandıysa |
 | 🟠 Kanal genişliği düştü | Bir radyo 15 dk boyunca ayarlanandan dar çalışırsa. Süre, yeniden başlatma sonrası ~10 dk'lık DFS dinlemesi uyarı üretmesin diye 15 dk seçildi |
 | 🔴 / 🟠 Yönetici girişi | Router günlüğünde "started a user session" satırı gelince, tek mesaj: internetten giriş 🔴, ev ağından ya da VPN'den giriş 🟠. Mobil uygulama ve Keenetic bulutu oturumları (gerçek IP görünmez, çok sık) uyarı üretmez |

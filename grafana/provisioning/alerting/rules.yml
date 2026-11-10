@@ -55,12 +55,13 @@ groups:
               refId: A
               instant: true
               # Son 1 saatte görülüp şimdi listede olmayan üyeler (router erişilebilirken),
-              # ya da listede olup interneti olmayanlar
+              # ya da listede olup interneti olmayanlar. Üyeler internet durumunu controller'dan
+              # aldığı için controller'ın interneti yokken bu kısım üretmez (İnternet bağlantısı yok uyarısı var).
               expr: >-
                 (count by (mac, name) (max_over_time(keenetic_mesh_member_info[1h]))
                   unless on(mac) keenetic_mesh_member_info
                   and on() keenetic_up == 1)
-                or (1 - keenetic_mesh_member_internet_available) > 0
+                or ((1 - keenetic_mesh_member_internet_available) > 0 and on() keenetic_internet_up == 1)
           - refId: B
             datasourceUid: __expr__
             model:
